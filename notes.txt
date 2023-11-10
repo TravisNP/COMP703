@@ -1,0 +1,6 @@
+Notes:
+Must build libraries before building main project.
+
+dune build lib/Dictionary.ml
+dune build
+dune dune exec ./bin/main.exe

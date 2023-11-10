@@ -1,0 +1,8 @@
+lib: [
+  "_build/install/default/lib/COMP_PROVER/META"
+  "_build/install/default/lib/COMP_PROVER/dune-package"
+  "_build/install/default/lib/COMP_PROVER/opam"
+]
+bin: [
+  "_build/install/default/bin/COMP_PROVER"
+]

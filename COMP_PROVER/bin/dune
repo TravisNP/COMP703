@@ -1,0 +1,8 @@
+(executable
+ (public_name COMP_PROVER)
+ (name main)
+ (libraries COMP_PROVER)
+ )
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
