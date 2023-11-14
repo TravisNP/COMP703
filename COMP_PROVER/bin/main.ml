@@ -4,11 +4,11 @@
 
 (* theorem data type, S represents singleton *)
 type theorem =
-  (* | NOT of theorem *)
   | CON of theorem * theorem
   | DIS of theorem * theorem
   | IMP of theorem * theorem
   | S of int
+  | F
 
 module Theorem = struct
   type t = theorem
@@ -47,8 +47,8 @@ let rec theorem_to_string theorem =
   | CON (left, right) -> "(" ^ theorem_to_string left ^ ")" ^ " && " ^ "(" ^ theorem_to_string right ^ ")"
   | DIS (left, right) -> "(" ^ theorem_to_string left ^ ")" ^ " || " ^ "(" ^ theorem_to_string right ^ ")"
   | IMP (left, right) -> "(" ^ theorem_to_string left ^ ")" ^ " -> " ^ "(" ^ theorem_to_string right ^ ")"
-  (* | NOT value -> "~(" ^ theorem_to_string value ^ ")" *)
   | S value -> string_of_int value
+  | F -> "\u{22A5}"
 
 (* Converts proof to string *)
 let rec proof_to_string {rule; children; _} = 
@@ -94,7 +94,7 @@ let rec gen_new_axioms axiomSet theoremsToAdd =
   handle_imp_elim axiomSet conElimNotInAxiomSetTheoremsToAdd
 
 (* Takes in current axioms and the new theorems to add as axioms.
-   Does IMP ELIM rule on new axioms and feeds any new derived axioms back into gen_new_axioms *)
+   Does IMP ELIM rule and feeds any new derived axioms back into gen_new_axioms *)
 and handle_imp_elim axiomSet newTheoremsToAdd = 
   (* Returns the conclusion of the IMP theorem if the hypothesis of theorem matches the hypothesis given, None otherwise *)
   let axiomSet = AxiomSet.union axiomSet newTheoremsToAdd in
@@ -112,15 +112,18 @@ and handle_imp_elim axiomSet newTheoremsToAdd =
         )
     | [] -> [] in
 
-  (* Gets the conclusions of all IMP axioms where the hypothesis is an axiom and the conclusion is not already an axiom *)
+  (* Gets the conclusions of all IMP theorems in axiomSet where the hypothesis is in newTheoremsToAdd and the conclusion is not already an axiom *)
   let impMatchAxiomSetConc = AxiomSet.of_list (get_conc_if_hypo_match_list axiomSet (AxiomSet.to_list newTheoremsToAdd)) in
-  let impMatchAxiomSetConcNotInAxiomSet = AxiomSet.diff impMatchAxiomSetConc axiomSet in
+  (* Gets the conclusions of all IMP theorems in newTHeoremsToadd where the hyptohesis is in axiomSet and the conclusion is not already an axiom *)
+  let impMatchTheoremsToAddConc = AxiomSet.of_list (get_conc_if_hypo_match_list newTheoremsToAdd (AxiomSet.to_list axiomSet)) in
+  let impMatchBothSetsConc = AxiomSet.union impMatchAxiomSetConc impMatchTheoremsToAddConc in
+  let impMatchBothConcNotInAxiomSet = AxiomSet.diff impMatchBothSetsConc axiomSet in
 
   (* If no new conclusions have been generated, convergence has been reached and all new possible axioms have been generated,
      else generate new axioms *)
-  if AxiomSet.is_empty impMatchAxiomSetConcNotInAxiomSet
+  if AxiomSet.is_empty impMatchBothConcNotInAxiomSet
     then axiomSet
-    else gen_new_axioms axiomSet (AxiomSet.to_list impMatchAxiomSetConcNotInAxiomSet)
+    else gen_new_axioms axiomSet (AxiomSet.to_list impMatchBothConcNotInAxiomSet)
 
 (*  Main proof function.
   If the theorem is an axiom, return.
@@ -160,10 +163,8 @@ let rec prover theorem axioms usedDIS =
                   else {rule = DIS2_INTRO; children = [rightProof]; success = true})
               else {rule = DIS1_INTRO; children = [leftProof]; success = true}
           )
-        | S _ -> 
-            (
-              handle_dis_elim theorem axioms usedDIS
-            )
+        | S _ -> handle_dis_elim theorem axioms usedDIS
+        | F -> handle_dis_elim theorem axioms usedDIS
       )
 
 (* Handles the DIS Elimination rule. If a theorem in the axioms has DIS as the outer operator and has not been broken apart before,
@@ -197,40 +198,38 @@ and handle_dis_elim theorem axioms usedDIS =
 (* Calls the prover with an empty axiom set and empty usedDis set *)
 let prove_theorem theorem = prover theorem AxiomSet.empty AxiomSet.empty;;
 
+(* Prints the theorem, tries to prove it, then prints the proof *)
+let test_theorem theorem = 
+  print_theorem theorem;
+  let proof_theorem = prove_theorem theorem in
+  print_proof proof_theorem;
+  print_newline();;
+
 
 (* Swap theorem example *)
 let swap_theorem = IMP (CON (S 0, S 1), CON (S 1, S 0));;
-print_theorem swap_theorem;;
-let proof_swap_theorem = prove_theorem swap_theorem;;
-print_proof proof_swap_theorem;;
+test_theorem swap_theorem;;
 
-
-print_newline ();;
 (* Example of theorem on page 31 of Constructive Logic *)
 let example_theorem = IMP (IMP (S 0, CON (S 1, S 2)), CON (IMP (S 0, S 1), IMP (S 0, S 2)));;
-print_theorem example_theorem;;
-let proof_example_theorem = prove_theorem example_theorem;;
-print_proof proof_example_theorem;;
+test_theorem example_theorem;;
 
-
-print_newline ();;
 (* Example of theorem on page 13 of Constructive Logic *)
 let example_theorem2 = IMP (DIS (S 0, S 1), DIS (S 1, S 0));;
-print_theorem example_theorem2;;
-let proof_example_theorem2 = prove_theorem example_theorem2;;
-print_proof proof_example_theorem2;;
+test_theorem example_theorem2;;
 
-
-print_newline ();;
 (* Example of theorem to test that the gen_new_axioms method is working *)
-let example_theorem4 = IMP (IMP (IMP (S 0, S 1), CON (IMP (S 2, S 3), S 2)), IMP (IMP (S 0, S 1), S 3));;
-print_theorem example_theorem4;;
-let proof_example_theorem4 = prove_theorem example_theorem4;;
-print_proof proof_example_theorem4;;
+let example_theorem3 = IMP (IMP (IMP (S 0, S 1), CON (IMP (S 2, S 3), S 2)), IMP (IMP (S 0, S 1), S 3));;
+test_theorem example_theorem3;;
 
-print_newline ();;
 (* Example of theorem on page 33 of Constructive Logic *)
-let example_theorem5 = IMP ( CON (IMP (S 0, S 1), IMP (S 1, S 2)), IMP (S 0, S 2));;
-print_theorem example_theorem5;;
-let proof_example_theorem5 = prove_theorem example_theorem5;;
-print_proof proof_example_theorem5;;
+let example_theorem4 = IMP ( CON (IMP (S 0, S 1), IMP (S 1, S 2)), IMP (S 0, S 2));;
+test_theorem example_theorem4;;
+
+(* Example of first theorem on page 15 of Constructive Logic *)
+let example_not = IMP (CON (S 0, IMP (S 0, F)), F);;
+test_theorem example_not;;
+
+(* Example of second theorem on page 15 of Constructive Logic *)
+let example_not1 = IMP (S 0, IMP (IMP (S 0, F), F));;
+test_theorem example_not1;;
