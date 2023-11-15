@@ -1,5 +1,4 @@
 (* TODO: Record the CON and IMP elimination rules when used, currently not being recorded *)
-(* TODO: Implement NOT *)
 (* TODO: Separate into different files *)
 
 (* theorem data type, S represents singleton *)
@@ -64,7 +63,8 @@ let rec proof_to_string {rule; children; _} =
   let inside = match children with
     | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
     | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
-    | _ -> "ONLY 2 CHILDREN SHOULD BE POSSIBLE" in
+    | [] -> "I am unused, but exist for the Axiom and Failure cases"
+    | _ -> raise (SomethingIsWrong "proof_to_string: Only zero, one, or two children possible with this implementation") in
   match rule with
   | IMP_INTRO -> "\u{2283}I" ^ inside
   | CON_INTRO -> "\u{2227}I" ^ inside
@@ -73,7 +73,7 @@ let rec proof_to_string {rule; children; _} =
   | AXIOM theorem -> parenthesize theorem
   | FAILURE -> "FAILURE"
   | DIS_ELIM -> "\u{2228}E" ^ inside
-  | _ -> "ELIM rules not implemented yet "
+  | _ -> raise (SomethingIsWrong "proof_to_string: ELIM rules for CON and DIS not implemented")
 
 (* Prints theorem to terminal *)
 let print_theorem theorem = print_endline (theorem_to_string theorem)
@@ -205,7 +205,7 @@ and handle_dis_elim theorem axioms usedDIS =
       (* TODO: Might need to add foundDis to children for program extraction? *)
         else {rule = DIS_ELIM; children = [leftProof; rightProof]; success = true}
     )
-  | _ -> raise (SomethingIsWrong "DIS Theorem found in axioms doesn't match None or DIS (left, right, false). IMPOSSIBLE TO GET HERE")
+  | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in axioms doesn't match None or DIS (left, right, false)")
 
 (* Calls the prover with an empty axiom set and empty usedDis set *)
 let prove_theorem theorem = prover theorem AxiomSet.empty AxiomSet.empty;;
