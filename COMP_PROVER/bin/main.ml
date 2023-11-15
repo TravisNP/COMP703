@@ -43,24 +43,36 @@ exception SomethingIsWrong of string
 (* Converts theorem to string *)
 let rec theorem_to_string theorem = 
   match theorem with
-  (* | NOT (middle) -> "~(" ^ to_string middle ^ ")" *)
-  | CON (left, right) -> "(" ^ theorem_to_string left ^ ")" ^ " && " ^ "(" ^ theorem_to_string right ^ ")"
-  | DIS (left, right) -> "(" ^ theorem_to_string left ^ ")" ^ " || " ^ "(" ^ theorem_to_string right ^ ")"
-  | IMP (left, right) -> "(" ^ theorem_to_string left ^ ")" ^ " -> " ^ "(" ^ theorem_to_string right ^ ")"
+  | CON (left, right) -> parenthesize left ^ " \u{2227} " ^ parenthesize right
+  | DIS (left, right) -> parenthesize left ^ " \u{2228} " ^ parenthesize right
+  | IMP (left, right) -> 
+    (
+      match right with 
+      | F -> "\u{ac}" ^ parenthesize left
+      | _ -> parenthesize left ^ " \u{2283} " ^ parenthesize right
+    )
   | S value -> string_of_int value
   | F -> "\u{22A5}"
+and parenthesize theorem = 
+  match theorem with
+  | S value -> string_of_int value
+  | F -> "\u{22A5}"
+  | _ -> "(" ^ theorem_to_string theorem ^ ")"
 
 (* Converts proof to string *)
-let rec proof_to_string {rule; children; _} = 
-  let right = "( " ^ (List.fold_left (fun x y -> x ^ y) "" (List.map proof_to_string children)) ^ " )" in
+let rec proof_to_string {rule; children; _} =
+  let inside = match children with
+    | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
+    | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
+    | _ -> "ONLY 2 CHILDREN SHOULD BE POSSIBLE" in
   match rule with
-  | IMP_INTRO -> "->I" ^ right
-  | CON_INTRO -> "&I" ^ right
-  | DIS1_INTRO -> "||I1" ^ right
-  | DIS2_INTRO -> "||I2" ^ right
-  | AXIOM theorem -> "(" ^ (theorem_to_string theorem) ^ ")"
+  | IMP_INTRO -> "\u{2283}I" ^ inside
+  | CON_INTRO -> "\u{2227}I" ^ inside
+  | DIS1_INTRO -> "\u{2228}I1" ^ inside
+  | DIS2_INTRO -> "\u{2228}I2" ^ inside
+  | AXIOM theorem -> parenthesize theorem
   | FAILURE -> "FAILURE"
-  | DIS_ELIM -> "||E" ^ right
+  | DIS_ELIM -> "\u{2228}E" ^ inside
   | _ -> "ELIM rules not implemented yet "
 
 (* Prints theorem to terminal *)
@@ -205,31 +217,46 @@ let test_theorem theorem =
   print_proof proof_theorem;
   print_newline();;
 
+(* Define operators for NOT, CON, DIS, and IMP. Precedence rules apply !! > ** > @@ > &&. All binary operators are right associative.
+   Yes, it is confusing to have IMP defined as &&, however, in order to use only basic OCaml operators, which have a certain precedence order, 
+   they have to be overwritten like this. https://v2.ocaml.org/manual/expr.html. Otherwise would have to download and use a dependency *)
+let ( !! ) x = IMP(x, F);;
+let ( ** ) x y = CON(x, y);;
+let ( @@ ) x y = DIS(x, y);;
+let ( && ) x y = IMP(x, y);;
 
-(* Swap theorem example *)
-let swap_theorem = IMP (CON (S 0, S 1), CON (S 1, S 0));;
+
+(* Swap theorem example on page 9 of Constructive Logic*)
+(* let swap_theorem = IMP (CON (S 0, S 1), CON (S 1, S 0));; *)
+let swap_theorem = S 0 ** S 1 && S 1 ** S 0;;
 test_theorem swap_theorem;;
 
 (* Example of theorem on page 31 of Constructive Logic *)
-let example_theorem = IMP (IMP (S 0, CON (S 1, S 2)), CON (IMP (S 0, S 1), IMP (S 0, S 2)));;
+(* let example_theorem = IMP (IMP (S 0, CON (S 1, S 2)), CON (IMP (S 0, S 1), IMP (S 0, S 2)));; *)
+let example_theorem = (S 0 && (S 1 ** S 2)) && ((S 0 && S 1) ** (S 0 && S 2));;
 test_theorem example_theorem;;
 
 (* Example of theorem on page 13 of Constructive Logic *)
-let example_theorem2 = IMP (DIS (S 0, S 1), DIS (S 1, S 0));;
+(* let example_theorem2 = IMP (DIS (S 0, S 1), DIS (S 1, S 0));; *)
+let example_theorem2 = (S 0 @@ S 1) && (S 1 @@ S 0);;
 test_theorem example_theorem2;;
 
 (* Example of theorem to test that the gen_new_axioms method is working *)
-let example_theorem3 = IMP (IMP (IMP (S 0, S 1), CON (IMP (S 2, S 3), S 2)), IMP (IMP (S 0, S 1), S 3));;
+(* let example_theorem3 = IMP (IMP (IMP (S 0, S 1), CON (IMP (S 2, S 3), S 2)), IMP (IMP (S 0, S 1), S 3));; *)
+let example_theorem3 = ((S 0 && S 1) && ((S 2 && S 3) ** S 2)) && ((S 0 && S 1) && S 3);;
 test_theorem example_theorem3;;
 
 (* Example of theorem on page 33 of Constructive Logic *)
-let example_theorem4 = IMP ( CON (IMP (S 0, S 1), IMP (S 1, S 2)), IMP (S 0, S 2));;
+(* let example_theorem4 = IMP ( CON (IMP (S 0, S 1), IMP (S 1, S 2)), IMP (S 0, S 2));; *)
+let example_theorem4 = ((S 0 && S 1) ** (S 1 && S 2)) && (S 0 && S 2);;
 test_theorem example_theorem4;;
 
 (* Example of first theorem on page 15 of Constructive Logic *)
-let example_not = IMP (CON (S 0, IMP (S 0, F)), F);;
+(* let example_not = IMP (CON (S 0, IMP (S 0, F)), F);; *)
+let example_not = !!(S 0 ** !!(S 0));;
 test_theorem example_not;;
 
 (* Example of second theorem on page 15 of Constructive Logic *)
-let example_not1 = IMP (S 0, IMP (IMP (S 0, F), F));;
+(* let example_not1 = IMP (S 0, IMP (IMP (S 0, F), F));; *)
+let example_not1 = S 0 && !!(!!(S 0));;
 test_theorem example_not1;;
