@@ -18,7 +18,7 @@ module Theorem = struct
   let compare = compare
 end
 
-module AxiomSet = Set.Make (Theorem);;
+module AssumptionSet = Set.Make (Theorem);;
 
 (** rule data type *)
 type rule = 
@@ -83,7 +83,7 @@ let rec proof_to_string
   let inside = match children with
     | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
     | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
-    | [] -> "I am unused, but exist for the Axiom and Failure cases"
+    | [] -> "I am unused, but exist for the Assumption and Failure cases"
     | _ -> raise (SomethingIsWrong "proof_to_string: Only zero, one, or two children possible with this implementation") in
   match rule with
   | IMP_INTRO -> "\u{2283}I" ^ inside
@@ -106,14 +106,14 @@ let print_proof
   proof = print_endline (proof_to_string proof)
 
 (** Print a list of theorems to terminal, one on each line *)
-let print_axioms
-  axioms = 
-  let axiomsList = AxiomSet.to_list axioms in
-  List.iter print_theorem axiomsList
+let print_assumptions
+  assumptions = 
+  let assumptionsList = AssumptionSet.to_list assumptions in
+  List.iter print_theorem assumptionsList
 
-(** Generates the new set of axioms using the CON ELIM and IMP ELIM rules *)
-let rec gen_new_axioms
-  axiomSet theoremsToAdd =
+(** Generates the new set of assumptions using the CON ELIM and IMP ELIM rules *)
+let rec gen_new_assumptions
+  assumptionSet theoremsToAdd =
 
   (* CON Elimination rule. For a list of theorems, adds the children of CON to the list. Does so recursively. For example, [A&(B&C)] returns [A&(B&C),A,B&C,B,C] *)
   let rec handle_con_elim 
@@ -127,15 +127,15 @@ let rec gen_new_axioms
       )
     | [] -> [] in
   
-  (* Breaks apart all outside CON theorems being added to the axiom set using the CON ELIM rule and feeds them into the IMP ELIM rule *)
-  let conElimTheoremsToAdd = AxiomSet.of_list (handle_con_elim theoremsToAdd) in
-  let conElimNotInAxiomSetTheoremsToAdd = AxiomSet.diff conElimTheoremsToAdd axiomSet in
-  handle_imp_elim axiomSet conElimNotInAxiomSetTheoremsToAdd
+  (* Breaks apart all outside CON theorems being added to the assumption set using the CON ELIM rule and feeds them into the IMP ELIM rule *)
+  let conElimTheoremsToAdd = AssumptionSet.of_list (handle_con_elim theoremsToAdd) in
+  let conElimNotInAssumptionSetTheoremsToAdd = AssumptionSet.diff conElimTheoremsToAdd assumptionSet in
+  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd
 
-(** Takes in current axioms and the new theorems to add as axioms. Does IMP ELIM rule and feeds any new derived axioms back into gen_new_axioms *)
+(** Takes in current assumptions and the new theorems to add as assumptions. Does IMP ELIM rule and feeds any new derived assumptions back into gen_new_assumptions *)
 and handle_imp_elim 
-  axiomSet newTheoremsToAdd = 
-  let axiomSet = AxiomSet.union axiomSet newTheoremsToAdd in
+  assumptionSet newTheoremsToAdd = 
+  let assumptionSet = AssumptionSet.union assumptionSet newTheoremsToAdd in
 
   (* Returns the conclusion of the IMP theorem if the hypothesis of theorem matches the hypothesis given, None otherwise *)
   let conc_hypo_match
@@ -143,106 +143,106 @@ and handle_imp_elim
   | IMP (hypo_theorem, conclusion) -> if hypo_theorem = hypothesis then Some conclusion else None
   | _ -> None in
 
-  (* Returns the conlusions of all implications in axiomSet if the implication's hypothesis is in possibleHypothesis *)
+  (* Returns the conlusions of all implications in assumptionSet if the implication's hypothesis is in possibleHypothesis *)
   let rec get_conc_if_hypo_match_list
-    axiomSet possibleHypotheses =
+    assumptionSet possibleHypotheses =
     match possibleHypotheses with
     | hypothesis :: hypotheses -> 
         (
-          let conclusions = AxiomSet.to_list (AxiomSet.filter_map (conc_hypo_match hypothesis) axiomSet) in
-          conclusions @ (get_conc_if_hypo_match_list axiomSet hypotheses)
+          let conclusions = AssumptionSet.to_list (AssumptionSet.filter_map (conc_hypo_match hypothesis) assumptionSet) in
+          conclusions @ (get_conc_if_hypo_match_list assumptionSet hypotheses)
         )
     | [] -> [] in
 
-  (* Gets the conclusions of all IMP theorems in axiomSet where the hypothesis is in newTheoremsToAdd and the conclusion is not already an axiom *)
-  let impMatchAxiomSetConc = AxiomSet.of_list (get_conc_if_hypo_match_list axiomSet (AxiomSet.to_list newTheoremsToAdd)) in
-  (* Gets the conclusions of all IMP theorems in newTHeoremsToadd where the hyptohesis is in axiomSet and the conclusion is not already an axiom *)
-  let impMatchTheoremsToAddConc = AxiomSet.of_list (get_conc_if_hypo_match_list newTheoremsToAdd (AxiomSet.to_list axiomSet)) in
-  let impMatchBothSetsConc = AxiomSet.union impMatchAxiomSetConc impMatchTheoremsToAddConc in
-  let impMatchBothConcNotInAxiomSet = AxiomSet.diff impMatchBothSetsConc axiomSet in
+  (* Gets the conclusions of all IMP theorems in assumptionSet where the hypothesis is in newTheoremsToAdd and the conclusion is not already an assumption *)
+  let impMatchAssumptionSetConc = AssumptionSet.of_list (get_conc_if_hypo_match_list assumptionSet (AssumptionSet.to_list newTheoremsToAdd)) in
+  (* Gets the conclusions of all IMP theorems in newTHeoremsToadd where the hyptohesis is in assumptionSet and the conclusion is not already an assumption *)
+  let impMatchTheoremsToAddConc = AssumptionSet.of_list (get_conc_if_hypo_match_list newTheoremsToAdd (AssumptionSet.to_list assumptionSet)) in
+  let impMatchBothSetsConc = AssumptionSet.union impMatchAssumptionSetConc impMatchTheoremsToAddConc in
+  let impMatchBothConcNotInAssumptionSet = AssumptionSet.diff impMatchBothSetsConc assumptionSet in
 
-  (* If no new conclusions have been generated, convergence has been reached and all new possible axioms have been generated,
-     else generate new axioms *)
-  if AxiomSet.is_empty impMatchBothConcNotInAxiomSet
-    then axiomSet
-    else gen_new_axioms axiomSet (AxiomSet.to_list impMatchBothConcNotInAxiomSet)
+  (* If no new conclusions have been generated, convergence has been reached and all new possible assumptions have been generated,
+     else generate new assumptions *)
+  if AssumptionSet.is_empty impMatchBothConcNotInAssumptionSet
+    then assumptionSet
+    else gen_new_assumptions assumptionSet (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet)
 
 (**  Main proof function.
-  If the theorem is an axiom, return.
+  If the theorem is an assumption, return.
   Else check if theorem is of type CON, IMP, DIS, or S.
   Do INTRO rule corresponding to type CON, IMP, or DIS.
   If proof fails, do DIS ELIM rule if possible and reconsider theorem. If not possible, then fail.
-  Each time the IMP INTRO and DIS ELIM rule happen, add to Axioms and use CON ELIM and IMP ELIM to add anymore to axioms
+  Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions
      *)
 let rec prover
-  theorem axioms usedDIS =
-  if AxiomSet.mem theorem axioms 
+  theorem assumptions usedDIS =
+  if AssumptionSet.mem theorem assumptions 
     then {rule = AXIOM theorem; children = []; success = true;}
     else
       (
         match theorem with
         | CON (left, right) -> 
           (
-            let leftProof = prover left axioms usedDIS in
-            let rightProof = prover right axioms usedDIS in
+            let leftProof = prover left assumptions usedDIS in
+            let rightProof = prover right assumptions usedDIS in
             if not leftProof.success || not rightProof.success
-              then handle_dis_elim theorem axioms usedDIS
+              then handle_dis_elim theorem assumptions usedDIS
               else {rule = CON_INTRO; children = [leftProof; rightProof]; success = true;}
           )
         | IMP (left, right) ->
             (
-              let proof = prover right (gen_new_axioms axioms [left]) usedDIS in
+              let proof = prover right (gen_new_assumptions assumptions [left]) usedDIS in
               if not proof.success 
-                then handle_dis_elim theorem axioms usedDIS
+                then handle_dis_elim theorem assumptions usedDIS
                 else {rule = IMP_INTRO; children = [proof]; success = true;}
             )
         | DIS (left, right) ->
           (
-            let leftProof = prover left axioms usedDIS in
+            let leftProof = prover left assumptions usedDIS in
             if not leftProof.success
-              then (let rightProof = prover right axioms usedDIS in
+              then (let rightProof = prover right assumptions usedDIS in
                 if not rightProof.success
-                  then handle_dis_elim theorem axioms usedDIS
+                  then handle_dis_elim theorem assumptions usedDIS
                   else {rule = DIS2_INTRO; children = [rightProof]; success = true})
               else {rule = DIS1_INTRO; children = [leftProof]; success = true}
           )
-        | S _ -> handle_dis_elim theorem axioms usedDIS
-        | F -> handle_dis_elim theorem axioms usedDIS
+        | S _ -> handle_dis_elim theorem assumptions usedDIS
+        | F -> handle_dis_elim theorem assumptions usedDIS
       )
 
-(** Handles the DIS Elimination rule. If a theorem in the axioms has DIS as the outer operator and has not been broken apart before,
-    generate the new axiom sets and try to prove the theorem again using the DIS ELIM rule*)
+(** Handles the DIS Elimination rule. If a theorem in the assumptions has DIS as the outer operator and has not been broken apart before,
+    generate the new assumption sets and try to prove the theorem again using the DIS ELIM rule*)
 and handle_dis_elim 
-  theorem axioms usedDIS = 
+  theorem assumptions usedDIS = 
 
   (* Filters a set based on the predicate that a theorom had DIS as the outer operator and hasn't been used before.
   Returns an arbitrary element from the set, None if empty *)
-  let get_dis axiomSet usedDIS = 
+  let get_dis assumptionSet usedDIS = 
     let is_dis theorem = match theorem with DIS (_, _) -> true | _ -> false in
-    let disAxiomSet = AxiomSet.filter is_dis axiomSet in
-    let disAxiomSetNotUsed = AxiomSet.diff disAxiomSet usedDIS in
-    AxiomSet.choose_opt disAxiomSetNotUsed in
+    let disAssumptionSet = AssumptionSet.filter is_dis assumptionSet in
+    let disAssumptionSetNotUsed = AssumptionSet.diff disAssumptionSet usedDIS in
+    AssumptionSet.choose_opt disAssumptionSetNotUsed in
   
-  (* foundDis is a randomly chosen unused DIS axiom. If no such axiom exists, proof fails.
+  (* foundDis is a randomly chosen unused DIS assumption. If no such assumption exists, proof fails.
      If one does exist, do DIS ELIM rule. If fails, repeat until success or failure *)
-  let foundDis = get_dis axioms usedDIS in
+  let foundDis = get_dis assumptions usedDIS in
   match foundDis with
   | None -> {rule = FAILURE; children = []; success = false;}
   | Some DIS (left, right) -> 
     (
-      let usedDIS = AxiomSet.add (DIS (left, right)) usedDIS in
-      let leftProof = prover theorem (gen_new_axioms axioms [left]) usedDIS in
-      let rightProof = prover theorem (gen_new_axioms axioms [right]) usedDIS in
+      let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
+      let leftProof = prover theorem (gen_new_assumptions assumptions [left]) usedDIS in
+      let rightProof = prover theorem (gen_new_assumptions assumptions [right]) usedDIS in
       if not leftProof.success || not rightProof.success
-        then handle_dis_elim theorem axioms usedDIS
+        then handle_dis_elim theorem assumptions usedDIS
       (* TODO: Might need to add foundDis to children for program extraction? *)
         else {rule = DIS_ELIM; children = [leftProof; rightProof]; success = true}
     )
-  | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in axioms doesn't match None or DIS (left, right, false)")
+  | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
 
-(** Calls the prover with an empty axiom set and empty usedDis set *)
+(** Calls the prover with an empty assumption set and empty usedDis set *)
 let prove_theorem
-  theorem = prover theorem AxiomSet.empty AxiomSet.empty;;
+  theorem = prover theorem AssumptionSet.empty AssumptionSet.empty;;
 
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem

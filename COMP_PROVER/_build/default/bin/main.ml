@@ -1,4 +1,3 @@
-(* TODO: Record the CON and IMP elimination rules when used, currently not being recorded *)
 open Prover;;
 
 (* Swap theorem example on page 9 of Constructive Logic*)
@@ -35,6 +34,3 @@ test_theorem example_not;;
 (* let example_not1 = IMP (S 0, IMP (IMP (S 0, F), F));; *)
 let example_not1 = S 0 && !!(!!(S 0));;
 test_theorem example_not1;;
-
-let ex = ((a ** b) ** c) && (a ** b ** c);;
-test_theorem ex;;
