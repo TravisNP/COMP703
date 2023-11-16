@@ -38,7 +38,7 @@ type rule =
 
   | DIS_ELIM (** Disjunction elimination rule *)
 
-  | AXIOM of theorem (** Theorem is an assumpiton rule *)
+  | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
 
   | FAILURE (** Signifies proof has failed *)
 
@@ -90,7 +90,7 @@ let rec proof_to_string
   | CON_INTRO -> "\u{2227}I" ^ inside
   | DIS1_INTRO -> "\u{2228}I1" ^ inside
   | DIS2_INTRO -> "\u{2228}I2" ^ inside
-  | AXIOM theorem -> parenthesize theorem
+  | ASSUMPTION theorem -> parenthesize theorem
   | FAILURE -> "FAILURE"
   | DIS_ELIM -> "\u{2228}E" ^ inside
   | CON1_ELIM -> "\u{2227}E1" ^ inside
@@ -177,7 +177,7 @@ and handle_imp_elim
 let rec prover
   theorem assumptions usedDIS =
   if AssumptionSet.mem theorem assumptions 
-    then {rule = AXIOM theorem; children = []; success = true;}
+    then {rule = ASSUMPTION theorem; children = []; success = true;}
     else
       (
         match theorem with
