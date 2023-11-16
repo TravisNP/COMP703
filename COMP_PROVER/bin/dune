@@ -1,7 +1,7 @@
 (executable
  (public_name COMP_PROVER)
  (name main)
- (libraries COMP_PROVER)
+ (libraries Prover)
  )
 (env
   (dev

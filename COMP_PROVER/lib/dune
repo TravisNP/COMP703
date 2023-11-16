@@ -1,2 +1,3 @@
 (library
- (name COMP_PROVER))
+ (name Prover)
+ )
