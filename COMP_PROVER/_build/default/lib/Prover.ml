@@ -20,8 +20,11 @@ end
 
 module AssumptionSet = Set.Make (Theorem);;
 
+module TheoremMap = Map.Make (Theorem);;
+
 (** rule data type *)
 type rule = 
+
   | CON_INTRO (** Conjuction introduction rule *)
 
   | DIS1_INTRO (** Left disjunction introduction rule *)
@@ -38,19 +41,16 @@ type rule =
 
   | DIS_ELIM (** Disjunction elimination rule *)
 
-  | AXIOM of theorem (** Theorem is an assumpiton rule *)
+  | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
 
   | FAILURE (** Signifies proof has failed *)
 
 (** proof data type *)
-type proof = {
+type proof = 
 
-  rule: rule; (** Rule used in this step of proof *)
+| PROOF_BOTTOM of rule * proof list * bool (** Proof from bottom up, uses INTRO rules and DIS ELIM rule*)
 
-  children: proof list; (** The assumptions for this step *)
-
-  success: bool; (** Indicates proof success at this step *)
-}
+| PROOF_TOP of rule * theorem list (** Proof from top down, uses CON and IMP ELIM rule *)
 
 (* Custom exception to print out information to terminal *)
 exception SomethingIsWrong of string
@@ -79,23 +79,34 @@ and parenthesize
 
 (** Converts proof to string *)
 let rec proof_to_string 
-  {rule; children; _} =
-  let inside = match children with
-    | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
-    | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
-    | [] -> "I am unused, but exist for the Assumption and Failure cases"
-    | _ -> raise (SomethingIsWrong "proof_to_string: Only zero, one, or two children possible with this implementation") in
-  match rule with
-  | IMP_INTRO -> "\u{2283}I" ^ inside
-  | CON_INTRO -> "\u{2227}I" ^ inside
-  | DIS1_INTRO -> "\u{2228}I1" ^ inside
-  | DIS2_INTRO -> "\u{2228}I2" ^ inside
-  | AXIOM theorem -> parenthesize theorem
-  | FAILURE -> "FAILURE"
-  | DIS_ELIM -> "\u{2228}E" ^ inside
-  | CON1_ELIM -> "\u{2227}E1" ^ inside
-  | CON2_ELIM -> "\u{2227}E2" ^ inside
-  | IMP_ELIM -> "\u{2283}E" ^ inside
+  proof = match proof with 
+  | PROOF_BOTTOM (rule, children, _) ->
+    (
+      let inside = match children with
+        | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
+        | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
+        | [] -> "I am unused, but exist for the Assumption and Failure cases"
+        | _ -> raise (SomethingIsWrong "proof_to_string: Only zero, one, or two children possible with this implementation") in
+      match rule with
+      | IMP_INTRO -> "\u{2283}I" ^ inside
+      | CON_INTRO -> "\u{2227}I" ^ inside
+      | DIS1_INTRO -> "\u{2228}I1" ^ inside
+      | DIS2_INTRO -> "\u{2228}I2" ^ inside
+      | ASSUMPTION theorem -> parenthesize theorem
+      | FAILURE -> "FAILURE"
+      | DIS_ELIM -> "\u{2228}E" ^ inside
+      | CON1_ELIM -> raise (SomethingIsWrong "CON1_ELIM rule used in bottom proof")
+      | CON2_ELIM -> raise (SomethingIsWrong "CON2_ELIM rule used in bottom proof")
+      | IMP_ELIM -> raise (SomethingIsWrong "IMP_ELIM rule used in bottom proof")
+    )
+  | PROOF_TOP (rule, _) ->
+    (
+      match rule with
+      | CON1_ELIM -> "\u{2227}E1"
+      | CON2_ELIM -> "\u{2227}E2"
+      | IMP_ELIM -> "\u{2283}E"
+      | _ -> "Implement Me"
+    )
 
 (** Prints theorem to terminal *)
 let print_theorem
@@ -172,12 +183,11 @@ and handle_imp_elim
   Else check if theorem is of type CON, IMP, DIS, or S.
   Do INTRO rule corresponding to type CON, IMP, or DIS.
   If proof fails, do DIS ELIM rule if possible and reconsider theorem. If not possible, then fail.
-  Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions
-     *)
+  Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
 let rec prover
   theorem assumptions usedDIS =
   if AssumptionSet.mem theorem assumptions 
-    then {rule = AXIOM theorem; children = []; success = true;}
+    then PROOF_BOTTOM (ASSUMPTION theorem, [], true)
     else
       (
         match theorem with
@@ -185,26 +195,31 @@ let rec prover
           (
             let leftProof = prover left assumptions usedDIS in
             let rightProof = prover right assumptions usedDIS in
-            if not leftProof.success || not rightProof.success
-              then handle_dis_elim theorem assumptions usedDIS
-              else {rule = CON_INTRO; children = [leftProof; rightProof]; success = true;}
+            let successLeft = is_successful leftProof in
+            let successRight = is_successful rightProof in
+            if successLeft && successRight
+              then PROOF_BOTTOM (CON_INTRO, [leftProof; rightProof], true)
+              else handle_dis_elim theorem assumptions usedDIS
           )
         | IMP (left, right) ->
             (
               let proof = prover right (gen_new_assumptions assumptions [left]) usedDIS in
-              if not proof.success 
-                then handle_dis_elim theorem assumptions usedDIS
-                else {rule = IMP_INTRO; children = [proof]; success = true;}
+              let success = is_successful proof in
+              if success
+                then PROOF_BOTTOM (IMP_INTRO, [proof], true)
+                else handle_dis_elim theorem assumptions usedDIS
             )
         | DIS (left, right) ->
           (
             let leftProof = prover left assumptions usedDIS in
-            if not leftProof.success
+            let successLeft = is_successful leftProof in
+            if not successLeft
               then (let rightProof = prover right assumptions usedDIS in
-                if not rightProof.success
+                let successRight = is_successful rightProof in
+                if not successRight
                   then handle_dis_elim theorem assumptions usedDIS
-                  else {rule = DIS2_INTRO; children = [rightProof]; success = true})
-              else {rule = DIS1_INTRO; children = [leftProof]; success = true}
+                  else PROOF_BOTTOM (DIS2_INTRO, [rightProof], true)) 
+              else PROOF_BOTTOM (DIS1_INTRO, [leftProof], true)
           )
         | S _ -> handle_dis_elim theorem assumptions usedDIS
         | F -> handle_dis_elim theorem assumptions usedDIS
@@ -227,18 +242,26 @@ and handle_dis_elim
      If one does exist, do DIS ELIM rule. If fails, repeat until success or failure *)
   let foundDis = get_dis assumptions usedDIS in
   match foundDis with
-  | None -> {rule = FAILURE; children = []; success = false;}
+  | None -> PROOF_BOTTOM (FAILURE, [], false)
   | Some DIS (left, right) -> 
     (
       let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
       let leftProof = prover theorem (gen_new_assumptions assumptions [left]) usedDIS in
       let rightProof = prover theorem (gen_new_assumptions assumptions [right]) usedDIS in
-      if not leftProof.success || not rightProof.success
-        then handle_dis_elim theorem assumptions usedDIS
-      (* TODO: Might need to add foundDis to children for program extraction? *)
-        else {rule = DIS_ELIM; children = [leftProof; rightProof]; success = true}
+      let successLeft = is_successful leftProof in
+      let successRight = is_successful rightProof in
+      if successLeft && successRight
+        (* TODO: Might need to add foundDis to children for program extraction? *)
+        then PROOF_BOTTOM (DIS_ELIM, [leftProof; rightProof], true)
+        else handle_dis_elim theorem assumptions usedDIS
     )
   | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
+
+(** Returns true if the proof is successful, false otherwise *)
+and is_successful
+  proof = match proof with
+  | PROOF_BOTTOM (_, _, true) -> true
+  | _ -> false
 
 (** Calls the prover with an empty assumption set and empty usedDis set *)
 let prove_theorem
