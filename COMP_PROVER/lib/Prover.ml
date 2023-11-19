@@ -69,12 +69,12 @@ module TheoremMap = Map.Make (Theorem);;
 (** Type containing a set of theorems and a map of theorems to proofs *)
 type setAndMap = 
 
-  | SET_AND_MAP of AssumptionSet.t * proof TheoremMap.t
+  | SET_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t
 
 (** Type containing a list of theorems and a map of theorems to proofs *)
   type listAndMap = 
 
-  | LIST_AND_MAP of theorem list * proof TheoremMap.t
+  | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t
 
 (* Custom exception to print out information to terminal *)
 exception SomethingIsWrong of string
@@ -166,14 +166,19 @@ let rec gen_new_assumptions
             let newMap = TheoremMap.merge (theorem_map_merge) leftRightMap otherMap in
             LIST_AND_MAP ([theorem] @ (leftAssumptions) @ (rightAssumptions) @ (otherAssumptions), newMap)
           )
-        | _ -> [theorem] @ (handle_con_elim theoremsToAdd)
+        | _ -> 
+          (
+            let assumpAndMap = handle_con_elim theoremsToAdd map in match assumpAndMap with LIST_AND_MAP (assumptions, newMap) ->
+            LIST_AND_MAP ([theorem] @ (assumptions), newMap)
+          )
       )
-    | [] -> [] in
+    | [] -> LIST_AND_MAP ([], map) in
   
   (* Breaks apart all outside CON theorems being added to the assumption set using the CON ELIM rule and feeds them into the IMP ELIM rule *)
-  let conElimTheoremsToAdd = AssumptionSet.of_list (handle_con_elim theoremsToAdd) in
+  let assumptAndMap = handle_con_elim theoremsToAdd map in match assumptAndMap with LIST_AND_MAP (assumptions, newMap) ->
+  let conElimTheoremsToAdd = AssumptionSet.of_list assumptions in
   let conElimNotInAssumptionSetTheoremsToAdd = AssumptionSet.diff conElimTheoremsToAdd assumptionSet in
-  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd map
+  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd newMap
 
 (** Takes in current assumptions and the new theorems to add as assumptions. Does IMP ELIM rule and feeds any new derived assumptions back into gen_new_assumptions *)
 and handle_imp_elim 

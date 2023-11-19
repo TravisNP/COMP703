@@ -53,14 +53,22 @@ let myMap2 = TheoremMap.add (a) (PROOF (CON1_ELIM, [PROOF ((ASSUMPTION (a**b)), 
 print_proof proof_swap_theorem;;
 let proof_swap_theorem_prover = prover swap_theorem AssumptionSet.empty AssumptionSet.empty myMap;; *)
 module TestMap = Map.Make (Int);;
+module TestSet = Set.Make (String);;
 let m1 = TestMap.empty;;
-let m1 = TestMap.add 1 "hello" m1;;
-let m1 = TestMap.add 2 "I am 2" m1;;
+let m1 = TestMap.add 1 (TestSet.singleton "yeah" |> TestSet.add "chicken") m1;;
+let m1 = TestMap.add 2 (TestSet.singleton "mama") m1;;
 let m2 = TestMap.empty;;
-let m2 = TestMap.add 1 "world" m2;;
+let m2 = TestMap.add 1 (TestSet.singleton "chair") m2;;
 let m3 = TestMap.merge (fun _ s1 s2 -> match s1, s2 with
-  | Some s1, Some s2 -> Some (s1 ^ s2)
-  | Some s1, None -> Some s1
-  | None, Some s2 -> Some s2
-  | _ -> None)
+  | Some l1, Some l2 -> Some (TestSet.union l1 l2)
+  | Some l1, None -> Some l1
+  | None, Some l2 -> Some l2
+  | _ -> None
+  )
   m1 m2;;
+let my_merge _ s1 s2 = match s1, s2 with
+| Some l1, Some l2 -> Some (TestSet.union l1 l2)
+| Some l1, None -> Some l1
+| None, Some l2 -> Some l2
+| _ -> None
+let m4 = TestMap.merge my_merge m1 m2;;
