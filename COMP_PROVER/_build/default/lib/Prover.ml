@@ -45,12 +45,15 @@ type rule =
 
   | FAILURE (** Signifies proof has failed *)
 
-(** proof data type *)
+(** proof_bottom data type *)
 type proof = 
 
-| PROOF_BOTTOM of rule * proof list * bool (** Proof from bottom up, uses INTRO rules and DIS ELIM rule*)
+  | PROOF of rule * proof list * bool (** Proof *)
 
-| PROOF_TOP of rule * theorem list (** Proof from top down, uses CON and IMP ELIM rule *)
+(** Type containing a list of theorems and a map of theorems to proofs *)
+type assumptionsAndMap = 
+
+  | ASSUMP_AND_MAP of AssumptionSet.t * proof TheoremMap.t
 
 (* Custom exception to print out information to terminal *)
 exception SomethingIsWrong of string
@@ -80,12 +83,12 @@ and parenthesize
 (** Converts proof to string *)
 let rec proof_to_string 
   proof = match proof with 
-  | PROOF_BOTTOM (rule, children, _) ->
+  | PROOF(rule, children, _) ->
     (
       let inside = match children with
         | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
         | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
-        | [] -> "I am unused, but exist for the Assumption and Failure cases"
+        | [] -> ""
         | _ -> raise (SomethingIsWrong "proof_to_string: Only zero, one, or two children possible with this implementation") in
       match rule with
       | IMP_INTRO -> "\u{2283}I" ^ inside
@@ -95,17 +98,9 @@ let rec proof_to_string
       | ASSUMPTION theorem -> parenthesize theorem
       | FAILURE -> "FAILURE"
       | DIS_ELIM -> "\u{2228}E" ^ inside
-      | CON1_ELIM -> raise (SomethingIsWrong "CON1_ELIM rule used in bottom proof")
-      | CON2_ELIM -> raise (SomethingIsWrong "CON2_ELIM rule used in bottom proof")
-      | IMP_ELIM -> raise (SomethingIsWrong "IMP_ELIM rule used in bottom proof")
-    )
-  | PROOF_TOP (rule, _) ->
-    (
-      match rule with
-      | CON1_ELIM -> "\u{2227}E1"
-      | CON2_ELIM -> "\u{2227}E2"
-      | IMP_ELIM -> "\u{2283}E"
-      | _ -> "Implement Me"
+      | CON1_ELIM -> "\u{2227}E1" ^ inside
+      | CON2_ELIM -> "\u{2227}E2" ^ inside
+      | IMP_ELIM -> "\u{2283}E" ^ inside
     )
 
 (** Prints theorem to terminal *)
@@ -124,7 +119,7 @@ let print_assumptions
 
 (** Generates the new set of assumptions using the CON ELIM and IMP ELIM rules *)
 let rec gen_new_assumptions
-  assumptionSet theoremsToAdd =
+  assumptionSet theoremsToAdd map =
 
   (* CON Elimination rule. For a list of theorems, adds the children of CON to the list. Does so recursively. For example, [A&(B&C)] returns [A&(B&C),A,B&C,B,C] *)
   let rec handle_con_elim 
@@ -133,7 +128,10 @@ let rec gen_new_assumptions
     | theorem :: theoremsToAdd -> 
       (
         match theorem with
-        | CON (left, right) -> [theorem] @ (handle_con_elim [left]) @ (handle_con_elim [right]) @ (handle_con_elim theoremsToAdd)
+        | CON (left, right) -> 
+          (
+            [theorem] @ (handle_con_elim [left]) @ (handle_con_elim [right]) @ (handle_con_elim theoremsToAdd)
+          )
         | _ -> [theorem] @ (handle_con_elim theoremsToAdd)
       )
     | [] -> [] in
@@ -141,11 +139,11 @@ let rec gen_new_assumptions
   (* Breaks apart all outside CON theorems being added to the assumption set using the CON ELIM rule and feeds them into the IMP ELIM rule *)
   let conElimTheoremsToAdd = AssumptionSet.of_list (handle_con_elim theoremsToAdd) in
   let conElimNotInAssumptionSetTheoremsToAdd = AssumptionSet.diff conElimTheoremsToAdd assumptionSet in
-  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd
+  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd map
 
 (** Takes in current assumptions and the new theorems to add as assumptions. Does IMP ELIM rule and feeds any new derived assumptions back into gen_new_assumptions *)
 and handle_imp_elim 
-  assumptionSet newTheoremsToAdd = 
+  assumptionSet newTheoremsToAdd map = 
   let assumptionSet = AssumptionSet.union assumptionSet newTheoremsToAdd in
 
   (* Returns the conclusion of the IMP theorem if the hypothesis of theorem matches the hypothesis given, None otherwise *)
@@ -175,8 +173,8 @@ and handle_imp_elim
   (* If no new conclusions have been generated, convergence has been reached and all new possible assumptions have been generated,
      else generate new assumptions *)
   if AssumptionSet.is_empty impMatchBothConcNotInAssumptionSet
-    then assumptionSet
-    else gen_new_assumptions assumptionSet (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet)
+    then ASSUMP_AND_MAP (assumptionSet, map)
+    else gen_new_assumptions assumptionSet (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) map
 
 (**  Main proof function.
   If the theorem is an assumption, return.
@@ -185,50 +183,55 @@ and handle_imp_elim
   If proof fails, do DIS ELIM rule if possible and reconsider theorem. If not possible, then fail.
   Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
 let rec prover
-  theorem assumptions usedDIS =
+  theorem assumptions usedDIS map =
   if AssumptionSet.mem theorem assumptions 
-    then PROOF_BOTTOM (ASSUMPTION theorem, [], true)
+    then 
+      (
+  
+        PROOF (ASSUMPTION theorem, [], true)
+      )
     else
       (
         match theorem with
         | CON (left, right) -> 
           (
-            let leftProof = prover left assumptions usedDIS in
-            let rightProof = prover right assumptions usedDIS in
+            let leftProof = prover left assumptions usedDIS map in
+            let rightProof = prover right assumptions usedDIS map in
             let successLeft = is_successful leftProof in
             let successRight = is_successful rightProof in
             if successLeft && successRight
-              then PROOF_BOTTOM (CON_INTRO, [leftProof; rightProof], true)
-              else handle_dis_elim theorem assumptions usedDIS
+              then PROOF (CON_INTRO, [leftProof; rightProof], true)
+              else handle_dis_elim theorem assumptions usedDIS map
           )
         | IMP (left, right) ->
             (
-              let proof = prover right (gen_new_assumptions assumptions [left]) usedDIS in
+              let assumptionsAndMap = gen_new_assumptions assumptions [left] map in match assumptionsAndMap with ASSUMP_AND_MAP(assumptions, newMap) ->
+              let proof = prover right assumptions usedDIS newMap in
               let success = is_successful proof in
               if success
-                then PROOF_BOTTOM (IMP_INTRO, [proof], true)
-                else handle_dis_elim theorem assumptions usedDIS
+                then PROOF (IMP_INTRO, [proof], true)
+                else handle_dis_elim theorem assumptions usedDIS map
             )
         | DIS (left, right) ->
           (
-            let leftProof = prover left assumptions usedDIS in
+            let leftProof = prover left assumptions usedDIS map in
             let successLeft = is_successful leftProof in
             if not successLeft
-              then (let rightProof = prover right assumptions usedDIS in
+              then (let rightProof = prover right assumptions usedDIS map in
                 let successRight = is_successful rightProof in
                 if not successRight
-                  then handle_dis_elim theorem assumptions usedDIS
-                  else PROOF_BOTTOM (DIS2_INTRO, [rightProof], true)) 
-              else PROOF_BOTTOM (DIS1_INTRO, [leftProof], true)
+                  then handle_dis_elim theorem assumptions usedDIS map
+                  else PROOF (DIS2_INTRO, [rightProof], true)) 
+              else PROOF (DIS1_INTRO, [leftProof], true)
           )
-        | S _ -> handle_dis_elim theorem assumptions usedDIS
-        | F -> handle_dis_elim theorem assumptions usedDIS
+        | S _ -> handle_dis_elim theorem assumptions usedDIS map
+        | F -> handle_dis_elim theorem assumptions usedDIS map
       )
 
 (** Handles the DIS Elimination rule. If a theorem in the assumptions has DIS as the outer operator and has not been broken apart before,
     generate the new assumption sets and try to prove the theorem again using the DIS ELIM rule*)
 and handle_dis_elim 
-  theorem assumptions usedDIS = 
+  theorem assumptions usedDIS map = 
 
   (* Filters a set based on the predicate that a theorom had DIS as the outer operator and hasn't been used before.
   Returns an arbitrary element from the set, None if empty *)
@@ -242,30 +245,32 @@ and handle_dis_elim
      If one does exist, do DIS ELIM rule. If fails, repeat until success or failure *)
   let foundDis = get_dis assumptions usedDIS in
   match foundDis with
-  | None -> PROOF_BOTTOM (FAILURE, [], false)
+  | None -> PROOF (FAILURE, [], false)
   | Some DIS (left, right) -> 
     (
       let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
-      let leftProof = prover theorem (gen_new_assumptions assumptions [left]) usedDIS in
-      let rightProof = prover theorem (gen_new_assumptions assumptions [right]) usedDIS in
+      let assumptionsAndMap = gen_new_assumptions assumptions [left] map in match assumptionsAndMap with ASSUMP_AND_MAP(assumptions, newLeftMap) ->
+      let leftProof = prover theorem assumptions usedDIS newLeftMap in
+      let assumptionsAndMap = gen_new_assumptions assumptions [left] map in match assumptionsAndMap with ASSUMP_AND_MAP(assumptions, newRightMap) ->
+      let rightProof = prover theorem assumptions usedDIS newRightMap in
       let successLeft = is_successful leftProof in
       let successRight = is_successful rightProof in
       if successLeft && successRight
         (* TODO: Might need to add foundDis to children for program extraction? *)
-        then PROOF_BOTTOM (DIS_ELIM, [leftProof; rightProof], true)
-        else handle_dis_elim theorem assumptions usedDIS
+        then PROOF (DIS_ELIM, [leftProof; rightProof], true)
+        else handle_dis_elim theorem assumptions usedDIS map
     )
   | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
 
 (** Returns true if the proof is successful, false otherwise *)
 and is_successful
   proof = match proof with
-  | PROOF_BOTTOM (_, _, true) -> true
+  | PROOF (_, _, true) -> true
   | _ -> false
 
 (** Calls the prover with an empty assumption set and empty usedDis set *)
 let prove_theorem
-  theorem = prover theorem AssumptionSet.empty AssumptionSet.empty;;
+  theorem = prover theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty;;
 
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem
