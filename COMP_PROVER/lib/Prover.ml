@@ -1,5 +1,8 @@
 (* TODO: Record the CON and IMP elimination rules when used, currently not being recorded *)
 
+(** Flip the arguments of a function *)
+let flip f x y = f y x;;
+
 (** theorem data type *)
 type theorem =
 
@@ -35,6 +38,8 @@ type rule =
   | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
 
   | FAILURE (** Signifies proof has failed *)
+
+  | CONNECTION (** Connects bottom proof to top proof *)
 
 (** proof data type *)
 type proof = 
@@ -110,7 +115,7 @@ let rec proof_to_string
         | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
         | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
         | [] -> ""
-        | _ -> raise (SomethingIsWrong "proof_to_string: Only zero, one, or two children possible with this implementation") in
+        | _ -> raise (SomethingIsWrong "proof_to_string: More than 2 children. Only zero, one, or two children possible with this implementation") in
       match rule with
       | IMP_INTRO -> "\u{2283}I" ^ inside
       | CON_INTRO -> "\u{2227}I" ^ inside
@@ -122,6 +127,14 @@ let rec proof_to_string
       | CON1_ELIM -> "\u{2227}E1" ^ inside
       | CON2_ELIM -> "\u{2227}E2" ^ inside
       | IMP_ELIM -> "\u{2283}E" ^ inside
+      | CONNECTION -> 
+        (
+          match children with 
+          | theorem :: [] -> proof_to_string theorem
+          | left :: [right] -> proof_to_string left ^ " " ^ proof_to_string right
+          | [] -> raise (SomethingIsWrong "proof_to_string: PROOF with rule CONNECTION has no children. Impossible")
+          | _ -> raise (SomethingIsWrong "proof_to_string: More than 2 children. Only zero, one, or two children possible with this implementation")
+        )
     )
 
 (** Prints theorem to terminal *)
@@ -154,7 +167,7 @@ let rec gen_new_assumptions
             let leftAssumpAndMap = handle_con_elim [left] map in match leftAssumpAndMap with LIST_AND_MAP (leftAssumptions, leftMap) -> 
               let leftNewMap = TheoremMap.add left (ProofTopSet.singleton (PROOF_TOP (CON1_ELIM, [theorem]))) leftMap in
             let rightAssumpAndMap = handle_con_elim [right] map in match rightAssumpAndMap with LIST_AND_MAP (rightAssumptions, rightMap) ->
-              let rightNewMap = TheoremMap.add left (ProofTopSet.singleton (PROOF_TOP (CON2_ELIM, [theorem]))) rightMap in
+              let rightNewMap = TheoremMap.add right (ProofTopSet.singleton (PROOF_TOP (CON2_ELIM, [theorem]))) rightMap in
             let restAssumpAndMap = handle_con_elim theoremsToAdd map in match restAssumpAndMap with LIST_AND_MAP (otherAssumptions, otherMap) ->
               (* FIX ME - does not update if already in, just merges *)
             let theorem_map_merge _ proofSet1 proofSet2 = match proofSet1, proofSet2 with 
@@ -227,28 +240,28 @@ let rec prover
   if AssumptionSet.mem theorem assumptions 
     then 
       (
-        (* let rec get_proofs theorem  =
-          let proof = TheoremMap.find theorem map in match proof with
-          | PROOF_TOP (ASSUMPTION assumption, []) -> [PROOF (ASSUMPTION assumption, [], 0)]
-          | PROOF_TOP (ASSUMPTION _, _) -> raise (SomethingIsWrong "prover - get_shortest_proof: PROOF_TOP with rule ASSUMPTION has children - should not be possible")
-          | PROOF_TOP (CON1_ELIM, children) -> 
-              (
-                let childrenProofs = List.map get_proofs children in
-                let shortestProof = List.fold_left (fun prf1 prf2 -> match prf1, prf2 with PROOF (_, _, depth1), PROOF (_, _, depth2) -> if depth1 < depth2 then prf1 else prf2) 
-                  (PROOF (ASSUMPTION theorem, [], max_int)) childrenProofs in
-                [PROOF (CON1_ELIM, shortestProof, depth + 1)]
-              )
-          | PROOF_TOP (CON2_ELIM, children) ->
-              (
-                raise (SomethingIsWrong "prover - get_shortest_proof: Impelement CON2 ELIM")
-              )
-          | PROOF_TOP (IMP_ELIM, children) ->
-              (
-                raise (SomethingIsWrong "prover - get_shortest_proof: Impelement IMP ELIM")
-              )
-          | PROOF_TOP (_, _) -> raise (SomethingIsWrong "prover - get_shortest_proof: PROOF TOP with rule other than ASSUMPTION, CON OR IMP ELIM rule")
-        in  *)
-        PROOF (ASSUMPTION theorem, [], 1)
+        let get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth in
+        let rec get_proof_proofTop proofTop = match proofTop with
+          | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
+            (
+              let theoremUsedProof = get_proof theoremUsed in
+              let conclusionProof = get_proof conclusion in
+              let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
+              PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
+            )
+          | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
+          | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
+          | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
+          | _ -> raise (SomethingIsWrong "get_proof_proofTop")
+
+        and get_proof theorem =
+          let proofTopSet = TheoremMap.find theorem map in
+          let proofTopList = ProofTopSet.to_list proofTopSet in
+          let proofList = List.map get_proof_proofTop proofTopList in
+          List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE, [], max_int)) proofList
+
+        in 
+        PROOF (CONNECTION, [get_proof theorem], 1)
       )
     else
       (
@@ -265,7 +278,8 @@ let rec prover
           )
         | IMP (left, right) ->
             (
-              let assumptionsAndMap = gen_new_assumptions assumptions [left] map in match assumptionsAndMap with SET_AND_MAP(assumptions, newMap) ->
+              let mapWithLeft = addAssumptionToMap left map in
+              let assumptionsAndMap = gen_new_assumptions assumptions [left] mapWithLeft in match assumptionsAndMap with SET_AND_MAP(assumptions, newMap) ->
               let proof = prover right assumptions usedDIS newMap in
               let success = is_successful proof in
               if success
@@ -309,9 +323,13 @@ and handle_dis_elim
   | Some DIS (left, right) -> 
     (
       let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
-      let assumptionsAndMapLeft = gen_new_assumptions assumptions [left] map in match assumptionsAndMapLeft with SET_AND_MAP(assumptionsLeft, newLeftMap) ->
+
+      let mapWithLeft = addAssumptionToMap left map in
+      let assumptionsAndMapLeft = gen_new_assumptions assumptions [left] mapWithLeft in match assumptionsAndMapLeft with SET_AND_MAP(assumptionsLeft, newLeftMap) ->
       let leftProof = prover theorem assumptionsLeft usedDIS newLeftMap in
-      let assumptionsAndMapRight = gen_new_assumptions assumptions [right] map in match assumptionsAndMapRight with SET_AND_MAP(assumptionsRight, newRightMap) ->
+
+      let mapWithRight = addAssumptionToMap right map in
+      let assumptionsAndMapRight = gen_new_assumptions assumptions [right] mapWithRight in match assumptionsAndMapRight with SET_AND_MAP(assumptionsRight, newRightMap) ->
       let rightProof = prover theorem assumptionsRight usedDIS newRightMap in
       if (is_successful leftProof) && (is_successful rightProof)
         (* TODO: Might need to add foundDis to children for program extraction? *)
@@ -325,6 +343,9 @@ and is_successful
   proof = match proof with
   | PROOF (_, _, 1) -> true
   | _ -> false
+
+(** Adds an assumption to the map *)
+and addAssumptionToMap theorem map = TheoremMap.add theorem (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, []))) map
 
 (** Calls the prover with an empty assumption set and empty usedDis set *)
 let prove_theorem
