@@ -39,7 +39,7 @@ type rule =
 (** proof data type *)
 type proof = 
 
-  | PROOF of rule * proof list * bool (** Proof *)
+  | PROOF of rule * proof list * int (** Proof *)
 
 (** temp proof data type when keeping track of IMP and CON ELIM rules *)
 type proof_top = 
@@ -156,6 +156,7 @@ let rec gen_new_assumptions
             let rightAssumpAndMap = handle_con_elim [right] map in match rightAssumpAndMap with LIST_AND_MAP (rightAssumptions, rightMap) ->
               let rightNewMap = TheoremMap.add left (ProofTopSet.singleton (PROOF_TOP (CON2_ELIM, [theorem]))) rightMap in
             let restAssumpAndMap = handle_con_elim theoremsToAdd map in match restAssumpAndMap with LIST_AND_MAP (otherAssumptions, otherMap) ->
+              (* FIX ME - does not update if already in, just merges *)
             let theorem_map_merge _ proofSet1 proofSet2 = match proofSet1, proofSet2 with 
               | Some proofSet1, Some proofSet2 -> Some (ProofTopSet.union proofSet1 proofSet2)
               | Some proofSet1, None -> Some proofSet1
@@ -164,7 +165,7 @@ let rec gen_new_assumptions
             in
             let leftRightMap = TheoremMap.merge (theorem_map_merge) leftNewMap rightNewMap in
             let newMap = TheoremMap.merge (theorem_map_merge) leftRightMap otherMap in
-            LIST_AND_MAP ([theorem] @ (leftAssumptions) @ (rightAssumptions) @ (otherAssumptions), newMap)
+            LIST_AND_MAP ([theorem] @ leftAssumptions @ rightAssumptions @ otherAssumptions, newMap)
           )
         | _ -> 
           (
@@ -226,8 +227,28 @@ let rec prover
   if AssumptionSet.mem theorem assumptions 
     then 
       (
-  
-        PROOF (ASSUMPTION theorem, [], true)
+        (* let rec get_proofs theorem  =
+          let proof = TheoremMap.find theorem map in match proof with
+          | PROOF_TOP (ASSUMPTION assumption, []) -> [PROOF (ASSUMPTION assumption, [], 0)]
+          | PROOF_TOP (ASSUMPTION _, _) -> raise (SomethingIsWrong "prover - get_shortest_proof: PROOF_TOP with rule ASSUMPTION has children - should not be possible")
+          | PROOF_TOP (CON1_ELIM, children) -> 
+              (
+                let childrenProofs = List.map get_proofs children in
+                let shortestProof = List.fold_left (fun prf1 prf2 -> match prf1, prf2 with PROOF (_, _, depth1), PROOF (_, _, depth2) -> if depth1 < depth2 then prf1 else prf2) 
+                  (PROOF (ASSUMPTION theorem, [], max_int)) childrenProofs in
+                [PROOF (CON1_ELIM, shortestProof, depth + 1)]
+              )
+          | PROOF_TOP (CON2_ELIM, children) ->
+              (
+                raise (SomethingIsWrong "prover - get_shortest_proof: Impelement CON2 ELIM")
+              )
+          | PROOF_TOP (IMP_ELIM, children) ->
+              (
+                raise (SomethingIsWrong "prover - get_shortest_proof: Impelement IMP ELIM")
+              )
+          | PROOF_TOP (_, _) -> raise (SomethingIsWrong "prover - get_shortest_proof: PROOF TOP with rule other than ASSUMPTION, CON OR IMP ELIM rule")
+        in  *)
+        PROOF (ASSUMPTION theorem, [], 1)
       )
     else
       (
@@ -239,7 +260,7 @@ let rec prover
             let successLeft = is_successful leftProof in
             let successRight = is_successful rightProof in
             if successLeft && successRight
-              then PROOF (CON_INTRO, [leftProof; rightProof], true)
+              then PROOF (CON_INTRO, [leftProof; rightProof], 1)
               else handle_dis_elim theorem assumptions usedDIS map
           )
         | IMP (left, right) ->
@@ -248,7 +269,7 @@ let rec prover
               let proof = prover right assumptions usedDIS newMap in
               let success = is_successful proof in
               if success
-                then PROOF (IMP_INTRO, [proof], true)
+                then PROOF (IMP_INTRO, [proof], 1)
                 else handle_dis_elim theorem assumptions usedDIS map
             )
         | DIS (left, right) ->
@@ -260,8 +281,8 @@ let rec prover
                 let successRight = is_successful rightProof in
                 if not successRight
                   then handle_dis_elim theorem assumptions usedDIS map
-                  else PROOF (DIS2_INTRO, [rightProof], true)) 
-              else PROOF (DIS1_INTRO, [leftProof], true)
+                  else PROOF (DIS2_INTRO, [rightProof], 1)) 
+              else PROOF (DIS1_INTRO, [leftProof], 1)
           )
         | S _ -> handle_dis_elim theorem assumptions usedDIS map
         | F -> handle_dis_elim theorem assumptions usedDIS map
@@ -284,19 +305,17 @@ and handle_dis_elim
      If one does exist, do DIS ELIM rule. If fails, repeat until success or failure *)
   let foundDis = get_dis assumptions usedDIS in
   match foundDis with
-  | None -> PROOF (FAILURE, [], false)
+  | None -> PROOF (FAILURE, [], 0)
   | Some DIS (left, right) -> 
     (
       let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
-      let assumptionsAndMap = gen_new_assumptions assumptions [left] map in match assumptionsAndMap with SET_AND_MAP(assumptions, newLeftMap) ->
-      let leftProof = prover theorem assumptions usedDIS newLeftMap in
-      let assumptionsAndMap = gen_new_assumptions assumptions [left] map in match assumptionsAndMap with SET_AND_MAP(assumptions, newRightMap) ->
-      let rightProof = prover theorem assumptions usedDIS newRightMap in
-      let successLeft = is_successful leftProof in
-      let successRight = is_successful rightProof in
-      if successLeft && successRight
+      let assumptionsAndMapLeft = gen_new_assumptions assumptions [left] map in match assumptionsAndMapLeft with SET_AND_MAP(assumptionsLeft, newLeftMap) ->
+      let leftProof = prover theorem assumptionsLeft usedDIS newLeftMap in
+      let assumptionsAndMapRight = gen_new_assumptions assumptions [right] map in match assumptionsAndMapRight with SET_AND_MAP(assumptionsRight, newRightMap) ->
+      let rightProof = prover theorem assumptionsRight usedDIS newRightMap in
+      if (is_successful leftProof) && (is_successful rightProof)
         (* TODO: Might need to add foundDis to children for program extraction? *)
-        then PROOF (DIS_ELIM, [leftProof; rightProof], true)
+        then PROOF (DIS_ELIM, [leftProof; rightProof], 1)
         else handle_dis_elim theorem assumptions usedDIS map
     )
   | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
@@ -304,7 +323,7 @@ and handle_dis_elim
 (** Returns true if the proof is successful, false otherwise *)
 and is_successful
   proof = match proof with
-  | PROOF (_, _, true) -> true
+  | PROOF (_, _, 1) -> true
   | _ -> false
 
 (** Calls the prover with an empty assumption set and empty usedDis set *)
