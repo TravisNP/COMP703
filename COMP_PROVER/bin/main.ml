@@ -34,7 +34,3 @@ test_theorem example_not;;
 (* let example_not1 = IMP (S 0, IMP (IMP (S 0, F), F));; *)
 let example_not1 = S 0 && !!(!!(S 0));;
 test_theorem example_not1;;
-
-(* Example of theorem to test if CON ELIM rule is being recorded *)
-let example_con_elim = (a**b**c) && ((a**b)**(b**c));;
-test_theorem example_con_elim;;

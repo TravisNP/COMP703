@@ -1,8 +1,3 @@
-(* TODO: Record the CON and IMP elimination rules when used, currently not being recorded *)
-
-(** Flip the arguments of a function *)
-let flip f x y = f y x;;
-
 (** theorem data type *)
 type theorem =
 
@@ -169,7 +164,6 @@ let rec gen_new_assumptions
             let rightAssumpAndMap = handle_con_elim [right] map in match rightAssumpAndMap with LIST_AND_MAP (rightAssumptions, rightMap) ->
               let rightNewMap = TheoremMap.add right (ProofTopSet.singleton (PROOF_TOP (CON2_ELIM, [theorem]))) rightMap in
             let restAssumpAndMap = handle_con_elim theoremsToAdd map in match restAssumpAndMap with LIST_AND_MAP (otherAssumptions, otherMap) ->
-              (* FIX ME - does not update if already in, just merges *)
             let theorem_map_merge _ proofSet1 proofSet2 = match proofSet1, proofSet2 with 
               | Some proofSet1, Some proofSet2 -> Some (ProofTopSet.union proofSet1 proofSet2)
               | Some proofSet1, None -> Some proofSet1
@@ -352,8 +346,8 @@ and is_successful
   | PROOF (_, _, 1) -> true
   | _ -> false
 
-(** Adds an assumption to the map *)
-and addAssumptionToMap theorem map = TheoremMap.add theorem (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, []))) map
+(** Removes the current value for theorem in map and replaces it with the ProofTopSet with a single PROOF_TOP with rule ASSUMPTION *)
+and addAssumptionToMap theorem map = TheoremMap.update theorem (fun _ -> Some (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, [])))) map
 
 (** Calls the prover with an empty assumption set and empty usedDis set *)
 let prove_theorem
