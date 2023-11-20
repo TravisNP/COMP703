@@ -197,12 +197,20 @@ let rec gen_new_assumptions
 (** Takes in current assumptions and the new theorems to add as assumptions. Does IMP ELIM rule and feeds any new derived assumptions back into gen_new_assumptions *)
 and handle_imp_elim 
   assumptionSet newTheoremsToAdd map = 
+  let mapRef = ref map in
   let assumptionSet = AssumptionSet.union assumptionSet newTheoremsToAdd in
 
   (* Returns the conclusion of the IMP theorem if the hypothesis of theorem matches the hypothesis given, None otherwise *)
   let conc_hypo_match
   hypothesis theorem = match theorem with 
-  | IMP (hypo_theorem, conclusion) -> if hypo_theorem = hypothesis then Some conclusion else None
+  | IMP (hypo_theorem, conclusion) -> 
+      if hypo_theorem = hypothesis 
+        then 
+          (
+            mapRef := TheoremMap.add conclusion (ProofTopSet.singleton (PROOF_TOP (IMP_ELIM, [theorem; hypothesis]))) !mapRef;
+            Some conclusion 
+          )
+        else None
   | _ -> None in
 
   (* Returns the conlusions of all implications in assumptionSet if the implication's hypothesis is in possibleHypothesis *)
@@ -226,8 +234,8 @@ and handle_imp_elim
   (* If no new conclusions have been generated, convergence has been reached and all new possible assumptions have been generated,
      else generate new assumptions *)
   if AssumptionSet.is_empty impMatchBothConcNotInAssumptionSet
-    then SET_AND_MAP (assumptionSet, map)
-    else gen_new_assumptions assumptionSet (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) map
+    then SET_AND_MAP (assumptionSet, !mapRef)
+    else gen_new_assumptions assumptionSet (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) !mapRef
 
 (**  Main proof function.
   If the theorem is an assumption, return.
@@ -252,7 +260,7 @@ let rec prover
           | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
           | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
           | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
-          | _ -> raise (SomethingIsWrong "get_proof_proofTop")
+          | _ -> raise (SomethingIsWrong "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
 
         and get_proof theorem =
           let proofTopSet = TheoremMap.find theorem map in
