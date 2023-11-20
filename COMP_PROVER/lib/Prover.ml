@@ -1,3 +1,5 @@
+(* TODO: Add proof of foundDis in handle_dis_elim *)
+
 (** theorem data type *)
 type theorem =
 
@@ -22,9 +24,9 @@ type rule =
 
   | CON_INTRO (** Conjuction introduction rule *)
 
-  | DIS1_INTRO (** Left disjunction introduction rule *)
+  | DIS1_INTRO of theorem (** Left disjunction introduction rule *)
 
-  | DIS2_INTRO (** Right disjunction introduction rule *)
+  | DIS2_INTRO of theorem (** Right disjunction introduction rule *)
 
   | IMP_INTRO of theorem (** Implication introduction rule *)
 
@@ -34,7 +36,7 @@ type rule =
 
   | CON2_ELIM (** Right conjunction elimination rule *)
 
-  | DIS_ELIM of theorem * theorem (** Disjunction elimination rule *)
+  | DIS_ELIM of theorem (** Disjunction elimination rule *)
 
   | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
 
@@ -115,13 +117,14 @@ let rec proof_to_string
       let inside = match children with
         | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
         | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
+        | left :: middle :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string middle ^ " " ^ proof_to_string right ^ ")"
         | [] -> ""
-        | _ -> raise (SomethingIsWrong "proof_to_string: More than 2 children. Only zero, one, or two children possible with this implementation") in
+        | _ -> raise (SomethingIsWrong "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
       match rule with
       | IMP_INTRO (_) -> "\u{2283}I" ^ inside
       | CON_INTRO -> "\u{2227}I" ^ inside
-      | DIS1_INTRO -> "\u{2228}I1" ^ inside
-      | DIS2_INTRO -> "\u{2228}I2" ^ inside
+      | DIS1_INTRO (_) -> "\u{2228}I1" ^ inside
+      | DIS2_INTRO (_) -> "\u{2228}I2" ^ inside
       | ASSUMPTION theorem -> parenthesize theorem
       | FAILURE -> "FAILURE"
       | DIS_ELIM (_) -> "\u{2228}E" ^ inside
@@ -151,6 +154,16 @@ let print_assumptions
   assumptions = 
   let assumptionsList = AssumptionSet.to_list assumptions in
   List.iter print_theorem assumptionsList
+
+
+
+
+
+
+
+
+
+(* Prover methods --------------------------------------------------------------------------------------------------------------------------------------*)
 
 (** Generates the new set of assumptions using the CON ELIM and IMP ELIM rules *)
 let rec gen_new_assumptions
@@ -247,29 +260,8 @@ let rec prover
   theorem assumptions usedDIS map =
   if AssumptionSet.mem theorem assumptions 
     then 
-      (
-        let get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth in
-        let rec get_proof_proofTop proofTop = match proofTop with
-          | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
-            (
-              let theoremUsedProof = get_proof theoremUsed in
-              let conclusionProof = get_proof conclusion in
-              let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
-              PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
-            )
-          | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
-          | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
-          | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
-          | _ -> raise (SomethingIsWrong "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
-
-        and get_proof theorem =
-          let proofTopSet = TheoremMap.find theorem map in
-          let proofTopList = ProofTopSet.to_list proofTopSet in
-          let proofList = List.map get_proof_proofTop proofTopList in
-          List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE, [], max_int)) proofList
-
-        in 
-        PROOF (CONNECTION, [get_proof theorem], 1)
+      ( 
+        PROOF (CONNECTION, [get_proof theorem map], 1)
       )
     else
       (
@@ -303,8 +295,8 @@ let rec prover
                 let successRight = is_successful rightProof in
                 if not successRight
                   then handle_dis_elim theorem assumptions usedDIS map
-                  else PROOF (DIS2_INTRO, [rightProof], 1)) 
-              else PROOF (DIS1_INTRO, [leftProof], 1)
+                  else PROOF (DIS2_INTRO (left), [rightProof], 1)) 
+              else PROOF (DIS1_INTRO (right), [leftProof], 1)
           )
         | S _ -> handle_dis_elim theorem assumptions usedDIS map
         | F -> handle_dis_elim theorem assumptions usedDIS map
@@ -340,11 +332,31 @@ and handle_dis_elim
       let assumptionsAndMapRight = gen_new_assumptions assumptions [right] mapWithRight in match assumptionsAndMapRight with SET_AND_MAP(assumptionsRight, newRightMap) ->
       let rightProof = prover theorem assumptionsRight usedDIS newRightMap in
       if (is_successful leftProof) && (is_successful rightProof)
-        (* TODO: Might need to add foundDis to children for program extraction? *)
-        then PROOF (DIS_ELIM (left, right), [leftProof; rightProof], 1)
+        (* TODO: Add proof of foundDis *)
+        then PROOF (DIS_ELIM (DIS (left, right)), [get_proof (DIS (left, right)) map; leftProof; rightProof], 1)
         else handle_dis_elim theorem assumptions usedDIS map
     )
   | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
+
+  and get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth
+  and get_proof_proofTop map proofTop = match proofTop with
+    | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
+      (
+        let theoremUsedProof = get_proof theoremUsed map in
+        let conclusionProof = get_proof conclusion map in
+        let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
+        PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
+      )
+    | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed map in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
+    | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed map in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
+    | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
+    | _ -> raise (SomethingIsWrong "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
+
+  and get_proof theorem map =
+    let proofTopSet = TheoremMap.find theorem map in
+    let proofTopList = ProofTopSet.to_list proofTopSet in
+    let proofList = List.map (get_proof_proofTop map) proofTopList in
+    List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE, [], max_int)) proofList
 
 (** Returns true if the proof is successful, false otherwise *)
 and is_successful
@@ -366,6 +378,34 @@ let test_theorem
   let proof_theorem = prove_theorem theorem in
   print_proof proof_theorem;
   print_newline()
+
+
+(* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
+
+type program = 
+  | PAIR of program * program
+  | VAR of int
+  | ABS of int * program
+  | INL of theorem * program
+  | INR of theorem * program
+  | FST of program
+  | SND of program
+  | APP of program
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+(* Ease of use for user --------------------------------------------------------------------------------------------------------------------------------*)
 
 (* Define operators for NOT, CON, DIS, and IMP. Precedence rules apply !! > ** > @@ > &&. All binary operators are right associative.
    Yes, it is confusing to have IMP defined as &&, however, in order to use only basic OCaml operators, which have a certain precedence order, 
