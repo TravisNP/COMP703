@@ -484,20 +484,16 @@ let rec ocaml_converter
   program =
   match program with
   | VAR (theoremTag) -> "var" ^ (string_of_int theoremTag)
-  | PAIR (leftProgram, rightProgram) -> "(" ^ (ocaml_converter leftProgram) ^ "," ^ (ocaml_converter rightProgram) ^ ")"
-  (* | ABSTR (VAR theoremTag, right) -> "implement me"
-  | INL (otherType, injectedProgram) -> "implement me"
+  | PAIR (leftProgram, rightProgram) -> "(" ^ (ocaml_converter leftProgram) ^ ", " ^ (ocaml_converter rightProgram) ^ ")"
+  | ABSTR (VAR theoremTag, right) -> "fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ ocaml_converter right ^ ")"
+  (* | INL (otherType, injectedProgram) -> "implement me"
   | INR (otherType, injectedProgram) -> "implement me" *)
-  | FST (program) -> "fst " ^ (ocaml_converter program)
-  | SND (program) -> "snd " ^ (ocaml_converter program)
-  | APP (leftProgram, rightProgram) -> (ocaml_converter leftProgram) ^ " " ^ (ocaml_converter rightProgram)
+  | FST (program) -> "fst " ^ "(" ^ (ocaml_converter program) ^ ")"
+  | SND (program) -> "snd " ^ "(" ^ (ocaml_converter program) ^ ")"
+  | APP (leftProgram, rightProgram) -> "(" ^ (ocaml_converter leftProgram) ^ ") (" ^ (ocaml_converter rightProgram) ^ ")"
   (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
   | _ -> raise (SomethingIsWrong "ocaml_converted: Impossible program definition")
 
-
-(** Calls the ocaml_converter and post-proccesses the result *)
-let program_to_ocaml 
-  program = "let myProgram " ^ (ocaml_converter program)
 
 (* Ease of use for user --------------------------------------------------------------------------------------------------------------------------------*)
 
