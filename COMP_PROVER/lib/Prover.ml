@@ -76,8 +76,11 @@ type setAndMap =
 
   | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t
 
-(* Custom exception to print out information to terminal *)
+(** Custom exception to print out information to terminal *)
 exception SomethingIsWrong of string
+
+(** Exception for when the proof fails *)
+exception ProofFailure of string
 
 (** Converts theorem to string *)
 let rec theorem_to_string
@@ -360,57 +363,70 @@ and is_successful
 and addAssumptionToMap theorem map = TheoremMap.update theorem (fun _ -> Some (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, [])))) map
 
 (** Calls the prover with an empty assumption set and empty usedDis set *)
-let prove_theorem
+let theorem_to_proof
   theorem = prover theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty
 
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem
   theorem = 
   print_theorem theorem;
-  let proof_theorem = prove_theorem theorem in
+  let proof_theorem = theorem_to_proof theorem in
   print_proof proof_theorem;
   print_newline()
 
 
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
 
+(** program data type *)
 type program = 
-  | VAR of int
-  | PAIR of program * program
-  | ABSTR of program * program
-  | INL of theorem * program
-  | INR of theorem * program
-  | FST of program
-  | SND of program
-  | APP of program * program
-  | CASE of program * program * program * program * program
 
-(* let program_to_string program *)
+  | VAR of int (** Introduction of a variable*)
 
+  | PAIR of program * program (** Creates a pair *)
+
+  | ABSTR of program * program (** Lambda abstraction *)
+
+  | INL of theorem * program (** Left injection into a sum type *)
+
+  | INR of theorem * program (** Right injection into a sum type *)
+
+  | FST of program (** Gets the first element of a pair *)
+
+  | SND of program (** Gets the second element of a pair *)
+
+  | APP of program * program (** Application of the first program to the next *)
+
+  | CASE of program * program * program * program * program (** Matches the first program with either the fourth (returns second) or fifth (returns third) program. *)
+
+
+(** The tag used when using the IMP INTRO or DIS ELIM rules *)
 let annotation_number = ref (-1)
+
+(** Gets the next annotation number *)
 let next_annotation = 
   fun () ->
     annotation_number := !annotation_number + 1;
     !annotation_number
 
-let rec extractor 
+(** Converts a proof to it's corresponding program. Note that while this implementation is 1-1, it does not have to be (See note in get_theoremTag) *)
+let rec program_extractor 
   map proof = 
-  let extractor_same_map = extractor map in
+  let program_extractor_same_map = program_extractor map in
   match proof with
   | PROOF (ASSUMPTION assumption, [], _) -> VAR (TheoremMap.find assumption map)
-  | PROOF (CON_INTRO, [leftProof; rightProof], _) -> PAIR (extractor_same_map leftProof, extractor_same_map rightProof)
+  | PROOF (CON_INTRO, [leftProof; rightProof], _) -> PAIR (program_extractor_same_map leftProof, program_extractor_same_map rightProof)
   | PROOF (IMP_INTRO (theorem), [proof], _) -> 
       (
         let mapRef = ref map in
         let theoremTag = get_theoremTag theorem mapRef in
         let newMap = !mapRef in
-        ABSTR (VAR theoremTag, extractor newMap proof)
+        ABSTR (VAR theoremTag, program_extractor newMap proof)
       )
-  | PROOF (DIS1_INTRO (theorem), [proof], _) -> INL (theorem, extractor_same_map proof)
-  | PROOF (DIS2_INTRO (theorem), [proof], _) -> INR (theorem, extractor_same_map proof)
-  | PROOF (CON1_ELIM, [proof], _) -> FST (extractor_same_map proof)
-  | PROOF (CON2_ELIM, [proof], _) -> SND (extractor_same_map proof)
-  | PROOF (IMP_ELIM, [leftProof; rightProof], _) -> APP (extractor_same_map leftProof, extractor_same_map rightProof)
+  | PROOF (DIS1_INTRO (theorem), [proof], _) -> INL (theorem, program_extractor_same_map proof)
+  | PROOF (DIS2_INTRO (theorem), [proof], _) -> INR (theorem, program_extractor_same_map proof)
+  | PROOF (CON1_ELIM, [proof], _) -> FST (program_extractor_same_map proof)
+  | PROOF (CON2_ELIM, [proof], _) -> SND (program_extractor_same_map proof)
+  | PROOF (IMP_ELIM, [leftProof; rightProof], _) -> APP (program_extractor_same_map leftProof, program_extractor_same_map rightProof)
   | PROOF (DIS_ELIM (theorem), [leftRightProof; leftProof; rightProof], _) -> 
     (
       match theorem with
@@ -420,27 +436,28 @@ let rec extractor
           let theoremTagLeft = get_theoremTag left mapRef in
           let theoremTagRight = get_theoremTag right mapRef in
           let newMap = !mapRef in
-          CASE (extractor newMap leftRightProof, extractor newMap leftProof, extractor newMap rightProof, VAR theoremTagLeft, VAR theoremTagRight)
+          CASE (program_extractor newMap leftRightProof, program_extractor newMap leftProof, program_extractor newMap rightProof, VAR theoremTagLeft, VAR theoremTagRight)
         )
-      | _ -> raise (SomethingIsWrong "extractor: Non dis theorem used in DIS_ELIM rule")
+      | _ -> raise (SomethingIsWrong "program_extractor: Non dis theorem used in DIS_ELIM rule")
     )
-  | PROOF (CONNECTION, [proof], _) -> extractor_same_map proof
-  | PROOF (ASSUMPTION _, _, _) -> raise (SomethingIsWrong "extractor: Assumption rule does not have 0 children")
-  | PROOF (CON_INTRO, _, _) -> raise (SomethingIsWrong "extractor: CON_INTRO rule does not have 2 children")
-  | PROOF (IMP_INTRO (_), _, _) -> raise (SomethingIsWrong "extractor: IMP_INTRO rule does not have 1 child")
-  | PROOF (DIS1_INTRO (_), _, _) -> raise(SomethingIsWrong "extractor: DIS1_INTRO rule does not have 1 child")
-  | PROOF (DIS2_INTRO (_), _, _) -> raise(SomethingIsWrong "extractor: DIS2_INTRO rule does not have 1 child")
-  | PROOF (CON1_ELIM, _, _) -> raise(SomethingIsWrong "extractor: CON1_ELIM rule does not have 1 child")
-  | PROOF (CON2_ELIM, _, _) -> raise(SomethingIsWrong "extractor: CON2_ELIM rule does not have 1 child")
-  | PROOF (IMP_ELIM, _, _) -> raise(SomethingIsWrong "extractor: IMP_ELIM rule does not have 2 children")
-  | PROOF (DIS_ELIM (_), _, _) -> raise(SomethingIsWrong "extractor: DIS_ELIM rule does not have 3 children")
-  | PROOF (FAILURE, _, _) -> raise(SomethingIsWrong "extractor: FAILURE rule used")
-  | PROOF (CONNECTION, _, _) -> raise(SomethingIsWrong "extractor: CONNECTION rule does not have 1 child")
+  | PROOF (CONNECTION, [proof], _) -> program_extractor_same_map proof
+  | PROOF (ASSUMPTION _, _, _) -> raise (SomethingIsWrong "program_extractor: Assumption rule does not have 0 children")
+  | PROOF (CON_INTRO, _, _) -> raise (SomethingIsWrong "program_extractor: CON_INTRO rule does not have 2 children")
+  | PROOF (IMP_INTRO (_), _, _) -> raise (SomethingIsWrong "program_extractor: IMP_INTRO rule does not have 1 child")
+  | PROOF (DIS1_INTRO (_), _, _) -> raise(SomethingIsWrong "program_extractor: DIS1_INTRO rule does not have 1 child")
+  | PROOF (DIS2_INTRO (_), _, _) -> raise(SomethingIsWrong "program_extractor: DIS2_INTRO rule does not have 1 child")
+  | PROOF (CON1_ELIM, _, _) -> raise(SomethingIsWrong "program_extractor: CON1_ELIM rule does not have 1 child")
+  | PROOF (CON2_ELIM, _, _) -> raise(SomethingIsWrong "program_extractor: CON2_ELIM rule does not have 1 child")
+  | PROOF (IMP_ELIM, _, _) -> raise(SomethingIsWrong "program_extractor: IMP_ELIM rule does not have 2 children")
+  | PROOF (DIS_ELIM (_), _, _) -> raise(SomethingIsWrong "program_extractor: DIS_ELIM rule does not have 3 children")
+  | PROOF (FAILURE, _, _) -> raise(SomethingIsWrong "program_extractor: FAILURE rule used")
+  | PROOF (CONNECTION, _, _) -> raise(SomethingIsWrong "program_extractor: CONNECTION rule does not have 1 child")
 
-
-and get_theoremTag theorem mapRef =
+(** Gets the next theoremTag if one does not exist for the IMP INTRO and DIS ELIM rules. If one does exist, returns it *)
+and get_theoremTag
+  theorem mapRef =
   match TheoremMap.find_opt theorem !mapRef with
-  (* Note that this is a choice to always use the tag associated with the first time the theorem gets added by the IMP INTRO or DIS ELIM rule. Can be changed *)
+  (* Note: this is a choice to always use the tag associated with the first time the theorem gets added by the IMP INTRO or DIS ELIM rule. Can be changed *)
         | Some theoremTag -> theoremTag
         | None -> 
           (
@@ -449,13 +466,38 @@ and get_theoremTag theorem mapRef =
             theoremTag
           )
 
-let program_extractor
-  proof = extractor TheoremMap.empty proof
+(** Calls the program extractor with an empty theorem-to-tag map *)
+let proof_to_program
+  proof = 
+  annotation_number := -1;
+  program_extractor TheoremMap.empty proof
+
+(** Takes in a theorem, proves it, and then returns the corresponding program *)
+let theorem_to_program theorem =
+  let proof = theorem_to_proof theorem in
+  match proof with
+  | PROOF (_, _, 1) -> proof_to_program proof
+  | _ -> raise (ProofFailure "The proof has failed. Cannot extract program")
+
+(** Converts an abstract program to a runnable program in OCaml, returns a string *)
+let rec ocaml_converter
+  program =
+  match program with
+  | VAR (theoremTag) -> "var" ^ (string_of_int theoremTag)
+  | PAIR (leftProgram, rightProgram) -> "(" ^ (ocaml_converter leftProgram) ^ "," ^ (ocaml_converter rightProgram) ^ ")"
+  (* | ABSTR (VAR theoremTag, right) -> "implement me"
+  | INL (otherType, injectedProgram) -> "implement me"
+  | INR (otherType, injectedProgram) -> "implement me" *)
+  | FST (program) -> "fst " ^ (ocaml_converter program)
+  | SND (program) -> "snd " ^ (ocaml_converter program)
+  | APP (leftProgram, rightProgram) -> (ocaml_converter leftProgram) ^ " " ^ (ocaml_converter rightProgram)
+  (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
+  | _ -> raise (SomethingIsWrong "ocaml_converted: Impossible program definition")
 
 
-
-
-
+(** Calls the ocaml_converter and post-proccesses the result *)
+let program_to_ocaml 
+  program = "let myProgram " ^ (ocaml_converter program)
 
 (* Ease of use for user --------------------------------------------------------------------------------------------------------------------------------*)
 
