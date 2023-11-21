@@ -1,5 +1,3 @@
-(* TODO: Add proof of foundDis in handle_dis_elim *)
-
 (** theorem data type *)
 type theorem =
 
@@ -12,12 +10,6 @@ type theorem =
   | S of int (** Singleton proposition constructor *)
 
   | F (** Falsehood constructor *)
-
-let annotation_number = ref (-1)
-let next_annotation = 
-  fun () ->
-    annotation_number := !annotation_number + 1;
-    !annotation_number
 
 (** rule data type *)
 type rule = 
@@ -383,22 +375,82 @@ let test_theorem
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
 
 type program = 
-  | PAIR of program * program
   | VAR of int
-  | ABS of int * program
+  | PAIR of program * program
+  | ABSTR of int * program
   | INL of theorem * program
   | INR of theorem * program
   | FST of program
   | SND of program
-  | APP of program
-  
+  | APP of program * program
+  | CASE of program * program * program * int * int
+
+(* let program_to_string program *)
+
+let annotation_number = ref (-1)
+let next_annotation = 
+  fun () ->
+    annotation_number := !annotation_number + 1;
+    !annotation_number
+
+let rec extractor 
+  map proof = 
+  let extractor_same_map = extractor map in
+  match proof with
+  | PROOF (ASSUMPTION assumption, [], _) -> VAR (TheoremMap.find assumption map)
+  | PROOF (CON_INTRO, [leftProof; rightProof], _) -> PAIR (extractor_same_map leftProof, extractor_same_map rightProof)
+  | PROOF (IMP_INTRO (theorem), [proof], _) -> 
+      (
+        let mapRef = ref map in
+        let theoremTag = get_theoremTag theorem mapRef in
+        let newMap = !mapRef in
+        ABSTR (theoremTag, extractor newMap proof)
+      )
+  | PROOF (DIS1_INTRO (theorem), [proof], _) -> INL (theorem, extractor_same_map proof)
+  | PROOF (DIS2_INTRO (theorem), [proof], _) -> INR (theorem, extractor_same_map proof)
+  | PROOF (CON1_ELIM, [proof], _) -> FST (extractor_same_map proof)
+  | PROOF (CON2_ELIM, [proof], _) -> SND (extractor_same_map proof)
+  | PROOF (IMP_ELIM, [leftProof; rightProof], _) -> APP (extractor_same_map leftProof, extractor_same_map rightProof)
+  | PROOF (DIS_ELIM (theorem), [leftRightProof; leftProof; rightProof], _) -> 
+    (
+      match theorem with
+      | DIS (left, right) ->
+        (
+          let mapRef = ref map in
+          let theoremTagLeft = get_theoremTag left mapRef in
+          let theoremTagRight = get_theoremTag right mapRef in
+          let newMap = !mapRef in
+          CASE (extractor newMap leftRightProof, extractor newMap leftProof, extractor newMap rightProof, theoremTagLeft, theoremTagRight)
+        )
+      | _ -> raise (SomethingIsWrong "extractor: Non dis theorem used in DIS_ELIM rule")
+    )
+  | PROOF (CONNECTION, [proof], _) -> extractor_same_map proof
+  | PROOF (ASSUMPTION _, _, _) -> raise (SomethingIsWrong "extractor: Assumption rule does not have 0 children")
+  | PROOF (CON_INTRO, _, _) -> raise (SomethingIsWrong "extractor: CON_INTRO rule does not have 2 children")
+  | PROOF (IMP_INTRO (_), _, _) -> raise (SomethingIsWrong "extractor: IMP_INTRO rule does not have 1 child")
+  | PROOF (DIS1_INTRO (_), _, _) -> raise(SomethingIsWrong "extractor: DIS1_INTRO rule does not have 1 child")
+  | PROOF (DIS2_INTRO (_), _, _) -> raise(SomethingIsWrong "extractor: DIS2_INTRO rule does not have 1 child")
+  | PROOF (CON1_ELIM, _, _) -> raise(SomethingIsWrong "extractor: CON1_ELIM rule does not have 1 child")
+  | PROOF (CON2_ELIM, _, _) -> raise(SomethingIsWrong "extractor: CON2_ELIM rule does not have 1 child")
+  | PROOF (IMP_ELIM, _, _) -> raise(SomethingIsWrong "extractor: IMP_ELIM rule does not have 2 children")
+  | PROOF (DIS_ELIM (_), _, _) -> raise(SomethingIsWrong "extractor: DIS_ELIM rule does not have 3 children")
+  | PROOF (FAILURE, _, _) -> raise(SomethingIsWrong "extractor: FAILURE rule used")
+  | PROOF (CONNECTION, _, _) -> raise(SomethingIsWrong "extractor: CONNECTION rule does not have 1 child")
 
 
+and get_theoremTag theorem mapRef =
+  match TheoremMap.find_opt theorem !mapRef with
+  (* Note that this is a choice to always use the tag associated with the first time the theorem gets added by the IMP INTRO or DIS ELIM rule. Can be changed *)
+        | Some theoremTag -> theoremTag
+        | None -> 
+          (
+            let theoremTag = next_annotation () in
+            mapRef := TheoremMap.add theorem theoremTag !mapRef;
+            theoremTag
+          )
 
-
-
-
-
+let program_extractor
+  proof = extractor TheoremMap.empty proof
 
 
 

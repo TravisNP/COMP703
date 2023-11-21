@@ -39,5 +39,5 @@ test_theorem example_not;;
 let example_not1 = S 0 && !!(!!(S 0));;
 test_theorem example_not1;;
 
-(* let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));; *)
-(* test_theorem transpose_of_3x3_matrix_theorem;; *)
+let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));;
+test_theorem transpose_of_3x3_matrix_theorem;;
