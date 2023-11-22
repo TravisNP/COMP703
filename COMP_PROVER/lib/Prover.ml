@@ -366,14 +366,6 @@ and addAssumptionToMap theorem map = TheoremMap.update theorem (fun _ -> Some (P
 let theorem_to_proof
   theorem = prover theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty
 
-(** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
-let test_theorem
-  theorem = 
-  print_theorem theorem;
-  let proof_theorem = theorem_to_proof theorem in
-  print_proof proof_theorem;
-  print_newline()
-
 
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
 
@@ -480,20 +472,30 @@ let theorem_to_program theorem =
   | _ -> raise (ProofFailure "The proof has failed. Cannot extract program")
 
 (** Converts an abstract program to a runnable program in OCaml, returns a string *)
-let rec ocaml_converter
+let rec program_to_ocaml_string
   program =
   match program with
   | VAR (theoremTag) -> "var" ^ (string_of_int theoremTag)
-  | PAIR (leftProgram, rightProgram) -> "(" ^ (ocaml_converter leftProgram) ^ ", " ^ (ocaml_converter rightProgram) ^ ")"
-  | ABSTR (VAR theoremTag, right) -> "fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ ocaml_converter right ^ ")"
+  | PAIR (leftProgram, rightProgram) -> "(" ^ (program_to_ocaml_string leftProgram) ^ ", " ^ (program_to_ocaml_string rightProgram) ^ ")"
+  | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ program_to_ocaml_string right ^ "))"
   (* | INL (otherType, injectedProgram) -> "implement me"
   | INR (otherType, injectedProgram) -> "implement me" *)
-  | FST (program) -> "fst " ^ "(" ^ (ocaml_converter program) ^ ")"
-  | SND (program) -> "snd " ^ "(" ^ (ocaml_converter program) ^ ")"
-  | APP (leftProgram, rightProgram) -> "(" ^ (ocaml_converter leftProgram) ^ ") (" ^ (ocaml_converter rightProgram) ^ ")"
+  | FST (program) -> "fst " ^ "(" ^ (program_to_ocaml_string program) ^ ")"
+  | SND (program) -> "snd " ^ "(" ^ (program_to_ocaml_string program) ^ ")"
+  | APP (leftProgram, rightProgram) -> "(" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ ")"
   (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
-  | _ -> raise (SomethingIsWrong "ocaml_converted: Impossible program definition")
+  | _ -> raise (SomethingIsWrong "program_to_ocaml_string: Impossible program definition")
 
+(** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
+let test_theorem
+  theorem = 
+  let proof = theorem_to_proof theorem in
+  let program = proof_to_program proof in
+  let program_ocaml = program_to_ocaml_string program in
+  print_theorem theorem;
+  print_proof proof;
+  print_endline (program_ocaml);
+  print_newline ()
 
 (* Ease of use for user --------------------------------------------------------------------------------------------------------------------------------*)
 
@@ -516,32 +518,32 @@ let ( @@ )
 let ( && ) 
   x y = IMP(x, y)
 
+(** S 0 *)
+let a = S 0
+
 (** S 1 *)
-let a = S 1
+let b = S 1
 
 (** S 2 *)
-let b = S 2
+let c = S 2
 
 (** S 3 *)
-let c = S 3
+let d = S 3
 
 (** S 4 *)
-let d = S 4
+let e = S 4
 
 (** S 5 *)
-let e = S 5
+let f = S 5
 
 (** S 6 *)
-let f = S 6
+let g = S 6
 
 (** S 7 *)
-let g = S 7
+let h = S 7
 
 (** S 8 *)
-let h = S 8
+let i = S 8
 
 (** S 9 *)
-let i = S 9
-
-(** S 10 *)
-let j = S 10
+let j = S 9

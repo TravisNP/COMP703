@@ -2,14 +2,13 @@ open Prover;;
 
 (* Swap theorem example on page 9 of Constructive Logic*)
 (* let swap_theorem = IMP (CON (S 0, S 1), CON (S 1, S 0));; *)
-let swap_theorem = S 0 ** S 1 && S 1 ** S 0;;
-test_theorem swap_theorem;;
+let swapTheorem = a ** b && b ** a in
+test_theorem swapTheorem;;
 
 (* Example of theorem on page 31 of Constructive Logic *)
 (* let example_theorem = IMP (IMP (S 0, CON (S 1, S 2)), CON (IMP (S 0, S 1), IMP (S 0, S 2)));; *)
-(* let example_theorem = (S 0 && (S 1 ** S 2)) && ((S 0 && S 1) ** (S 0 && S 2));;
-test_theorem example_theorem;; *)
-
+let functionSplitTheorem = (a && b ** c) && ((a && b) ** (a && c));;
+test_theorem functionSplitTheorem;;
 (* Example of theorem on page 13 of Constructive Logic *)
 (* let example_theorem2 = IMP (DIS (S 0, S 1), DIS (S 1, S 0));; *)
 (* let example_theorem2 = (S 0 @@ S 1) && (S 1 @@ S 0);;
@@ -26,8 +25,8 @@ test_theorem example_theorem3;; *)
 
 (* Example of theorem on page 33 of Constructive Logic *)
 (* let example_theorem4 = IMP ( CON (IMP (S 0, S 1), IMP (S 1, S 2)), IMP (S 0, S 2));; *)
-(* let example_theorem4 = ((S 0 && S 1) ** (S 1 && S 2)) && (S 0 && S 2);;
-test_theorem example_theorem4;; *)
+let functionCompositionTheorem = ((a && b) ** (b && c)) && (a && c);;
+test_theorem functionCompositionTheorem;;
 
 (* Example of first theorem on page 15 of Constructive Logic *)
 (* let example_not = IMP (CON (S 0, IMP (S 0, F)), F);; *)
@@ -39,5 +38,5 @@ test_theorem example_not;; *)
 (* let example_not1 = S 0 && !!(!!(S 0));;
 test_theorem example_not1;; *)
 
-(* let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));;
-test_theorem transpose_of_3x3_matrix_theorem;; *)
+let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));;
+test_theorem transpose_of_3x3_matrix_theorem;;
