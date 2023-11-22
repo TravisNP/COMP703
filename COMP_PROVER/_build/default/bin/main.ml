@@ -11,9 +11,11 @@ let functionSplitTheorem = (a && b ** c) && ((a && b) ** (a && c));;
 test_theorem functionSplitTheorem;;
 (* Example of theorem on page 13 of Constructive Logic *)
 (* let example_theorem2 = IMP (DIS (S 0, S 1), DIS (S 1, S 0));; *)
-(* let example_theorem2 = (S 0 @@ S 1) && (S 1 @@ S 0);;
-test_theorem example_theorem2;; *)
-
+let dis_theorem = (S 0 @@ S 1) && (S 1 @@ S 0);;
+print_theorem dis_theorem;;
+let dis_proof = theorem_to_proof dis_theorem;;
+print_proof dis_proof;;
+print_newline ();;
 (* Example to test that DIS_ELIM rule records the DIS theorem being used *)
 (* let dis_theorem = (a**(b@@c)) && (c@@b);;
 test_theorem dis_theorem;; *)
