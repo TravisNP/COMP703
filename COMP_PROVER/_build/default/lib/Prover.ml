@@ -5,7 +5,7 @@ type theorem =
 
   | DIS of theorem * theorem (** Disjunction constructor *)
 
-  | IMP of theorem * theorem (** Implication constructor *)
+  | IMP of theorem * theorem * bool (** Implication constructor *)
 
   | S of int (** Singleton proposition constructor *)
 
@@ -66,10 +66,10 @@ module TheoremMap = Map.Make (Theorem);;
 
 
 
-(** Type containing a set of theorems and a map of theorems to proofs *)
-type setAndMap = 
+(** Type containing a set of theorems, a map of theorems to prooftops, and a map of theorems to proofs - use to pass data back from gen new assumptions *)
+type setAndMapAndMap = 
 
-  | SET_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t
+  | SET_AND_MAP_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t * proof TheoremMap.t
 
 (** Type containing a list of theorems and a map of theorems to proofs *)
   type listAndMap = 
@@ -87,7 +87,7 @@ let rec theorem_to_string
   theorem = match theorem with
   | CON (left, right) -> parenthesize left ^ " \u{2227} " ^ parenthesize right
   | DIS (left, right) -> parenthesize left ^ " \u{2228} " ^ parenthesize right
-  | IMP (left, right) -> 
+  | IMP (left, right, _) -> 
     (
       match right with 
       | F -> "\u{ac}" ^ parenthesize left
@@ -162,22 +162,22 @@ let print_assumptions
 
 (** Generates the new set of assumptions using the CON ELIM and IMP ELIM rules *)
 let rec gen_new_assumptions
-  assumptionSet theoremsToAdd map =
+  assumptionSet theoremsToAdd usedDIS proofTopMap proofMap =
 
   (* CON Elimination rule. For a list of theorems, adds the children of CON to the list. Does so recursively. For example, [A&(B&C)] returns [A&(B&C),A,B&C,B,C] *)
   let rec handle_con_elim 
-    theoremsToAdd map = 
+    theoremsToAdd proofTopMap = 
     match theoremsToAdd with
     | theorem :: theoremsToAdd -> 
       (
         match theorem with
         | CON (left, right) -> 
           (
-            let leftAssumpAndMap = handle_con_elim [left] map in match leftAssumpAndMap with LIST_AND_MAP (leftAssumptions, leftMap) -> 
+            let leftAssumpAndMap = handle_con_elim [left] proofTopMap in match leftAssumpAndMap with LIST_AND_MAP (leftAssumptions, leftMap) -> 
               let leftNewMap = TheoremMap.add left (ProofTopSet.singleton (PROOF_TOP (CON1_ELIM, [theorem]))) leftMap in
-            let rightAssumpAndMap = handle_con_elim [right] map in match rightAssumpAndMap with LIST_AND_MAP (rightAssumptions, rightMap) ->
+            let rightAssumpAndMap = handle_con_elim [right] proofTopMap in match rightAssumpAndMap with LIST_AND_MAP (rightAssumptions, rightMap) ->
               let rightNewMap = TheoremMap.add right (ProofTopSet.singleton (PROOF_TOP (CON2_ELIM, [theorem]))) rightMap in
-            let restAssumpAndMap = handle_con_elim theoremsToAdd map in match restAssumpAndMap with LIST_AND_MAP (otherAssumptions, otherMap) ->
+            let restAssumpAndMap = handle_con_elim theoremsToAdd proofTopMap in match restAssumpAndMap with LIST_AND_MAP (otherAssumptions, otherMap) ->
             let theorem_map_merge _ proofSet1 proofSet2 = match proofSet1, proofSet2 with 
               | Some proofSet1, Some proofSet2 -> Some (ProofTopSet.union proofSet1 proofSet2)
               | Some proofSet1, None -> Some proofSet1
@@ -190,32 +190,35 @@ let rec gen_new_assumptions
           )
         | _ -> 
           (
-            let assumpAndMap = handle_con_elim theoremsToAdd map in match assumpAndMap with LIST_AND_MAP (assumptions, newMap) ->
+            let assumpAndMap = handle_con_elim theoremsToAdd proofTopMap in match assumpAndMap with LIST_AND_MAP (assumptions, newMap) ->
             LIST_AND_MAP ([theorem] @ (assumptions), newMap)
           )
       )
-    | [] -> LIST_AND_MAP ([], map) in
+    | [] -> LIST_AND_MAP ([], proofTopMap) in
   
   (* Breaks apart all outside CON theorems being added to the assumption set using the CON ELIM rule and feeds them into the IMP ELIM rule *)
-  let assumptAndMap = handle_con_elim theoremsToAdd map in match assumptAndMap with LIST_AND_MAP (assumptions, newMap) ->
+  let assumptAndMap = handle_con_elim theoremsToAdd proofTopMap in match assumptAndMap with LIST_AND_MAP (assumptions, newMap) ->
   let conElimTheoremsToAdd = AssumptionSet.of_list assumptions in
   let conElimNotInAssumptionSetTheoremsToAdd = AssumptionSet.diff conElimTheoremsToAdd assumptionSet in
-  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd newMap
+  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd usedDIS newMap proofMap
 
 (** Takes in current assumptions and the new theorems to add as assumptions. Does IMP ELIM rule and feeds any new derived assumptions back into gen_new_assumptions *)
 and handle_imp_elim 
-  assumptionSet newTheoremsToAdd map = 
-  let mapRef = ref map in
+  assumptionSet newTheoremsToAdd usedDIS proofTopMap proofMap = 
+  let mapRef = ref proofTopMap in
   let assumptionSet = AssumptionSet.union assumptionSet newTheoremsToAdd in
+  let assumptionSetRef = ref assumptionSet in
 
-  (* Returns the conclusion of the IMP theorem if the hypothesis of theorem matches the hypothesis given, None otherwise *)
+  (* Returns the conclusion of the IMP theorem if the hypothesis of theorem matches the hypothesis given and the theorem has not already been unlucked, None otherwise *)
   let conc_hypo_match
   hypothesis theorem = match theorem with 
-  | IMP (hypo_theorem, conclusion) -> 
+  | IMP (hypo_theorem, conclusion, _) -> 
       if hypo_theorem = hypothesis 
         then 
           (
             mapRef := TheoremMap.add conclusion (ProofTopSet.singleton (PROOF_TOP (IMP_ELIM, [theorem; hypothesis]))) !mapRef;
+            assumptionSetRef := AssumptionSet.remove theorem !assumptionSetRef;
+            assumptionSetRef := AssumptionSet.add (IMP (hypo_theorem, conclusion, true)) !assumptionSetRef;
             Some conclusion 
           )
         else None
@@ -242,8 +245,37 @@ and handle_imp_elim
   (* If no new conclusions have been generated, convergence has been reached and all new possible assumptions have been generated,
      else generate new assumptions *)
   if AssumptionSet.is_empty impMatchBothConcNotInAssumptionSet
-    then SET_AND_MAP (assumptionSet, !mapRef)
-    else gen_new_assumptions assumptionSet (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) !mapRef
+    then 
+      (
+        (* Get all imp theorems not yet broken apart. Try to prove assumption.
+           If provable, add theorem to proof to map. Add hypothesis to assumptions.
+           If something is provable, rerun gen_new_assumptions, else return stuff *)
+        let proofMapRef = ref proofMap in
+        let unlockedFlag = ref false in
+        let provedHypothesises = ref [] in
+        let prove_unproven_imp_hypo theorem =
+          match theorem with
+          | IMP (hypothesis, _, false) -> 
+            (
+              let proof = prover hypothesis !assumptionSetRef usedDIS !mapRef !proofMapRef in
+              match proof with
+              | PROOF (FAILURE, [], _) -> ()
+              | _-> 
+                (
+                  proofMapRef := TheoremMap.add hypothesis proof !proofMapRef;
+                  provedHypothesises := !provedHypothesises @ [hypothesis];
+                  unlockedFlag := true;
+                )
+            )
+          | _ -> ()
+          in
+        AssumptionSet.iter prove_unproven_imp_hypo !assumptionSetRef;
+        if !unlockedFlag
+          then 
+            gen_new_assumptions !assumptionSetRef !provedHypothesises usedDIS !mapRef !proofMapRef
+          else SET_AND_MAP_AND_MAP (!assumptionSetRef, !mapRef, !proofMapRef)
+      )
+    else gen_new_assumptions !assumptionSetRef (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) usedDIS !mapRef proofMap
 
 (**  Main proof function.
   If the theorem is an assumption, then get the shortest proof.
@@ -251,56 +283,56 @@ and handle_imp_elim
   Do INTRO rule corresponding to type CON, IMP, or DIS.
   If proof fails, do DIS ELIM rule if possible and reconsider theorem. If not possible, then fail.
   Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
-let rec prover
-  theorem assumptions usedDIS map =
+and prover
+  theorem assumptions usedDIS proofTopMap proofMap =
   if AssumptionSet.mem theorem assumptions 
     then 
       ( 
-        PROOF (CONNECTION, [get_proof theorem map], 1)
+        PROOF (CONNECTION, [get_proof theorem proofTopMap proofMap], 1)
       )
     else
       (
         match theorem with
         | CON (left, right) -> 
           (
-            let leftProof = prover left assumptions usedDIS map in
-            let rightProof = prover right assumptions usedDIS map in
+            let leftProof = prover left assumptions usedDIS proofTopMap proofMap in
+            let rightProof = prover right assumptions usedDIS proofTopMap proofMap in
             let successLeft = is_successful leftProof in
             let successRight = is_successful rightProof in
             if successLeft && successRight
               then PROOF (CON_INTRO, [leftProof; rightProof], 1)
-              else handle_dis_elim theorem assumptions usedDIS map
+              else handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
           )
-        | IMP (left, right) ->
+        | IMP (left, right, _) ->
             (
-              let mapWithLeft = addAssumptionToMap left map in
-              let assumptionsAndMap = gen_new_assumptions assumptions [left] mapWithLeft in match assumptionsAndMap with SET_AND_MAP(assumptions, newMap) ->
-              let proof = prover right assumptions usedDIS newMap in
+              let mapWithLeft = addAssumptionToMap left proofTopMap in
+              match gen_new_assumptions assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptions, newMap, newProofMap) ->
+              let proof = prover right assumptions usedDIS newMap newProofMap in
               let success = is_successful proof in
               if success
                 then PROOF (IMP_INTRO (left), [proof], 1)
-                else handle_dis_elim theorem assumptions usedDIS map
+                else handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
             )
         | DIS (left, right) ->
           (
-            let leftProof = prover left assumptions usedDIS map in
+            let leftProof = prover left assumptions usedDIS proofTopMap proofMap in
             let successLeft = is_successful leftProof in
             if not successLeft
-              then (let rightProof = prover right assumptions usedDIS map in
+              then (let rightProof = prover right assumptions usedDIS proofTopMap proofMap in
                 let successRight = is_successful rightProof in
                 if not successRight
-                  then handle_dis_elim theorem assumptions usedDIS map
+                  then handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
                   else PROOF (DIS2_INTRO (left), [rightProof], 1)) 
               else PROOF (DIS1_INTRO (right), [leftProof], 1)
           )
-        | S _ -> handle_dis_elim theorem assumptions usedDIS map
-        | F -> handle_dis_elim theorem assumptions usedDIS map
+        | S _ -> handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
+        | F -> handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
       )
 
 (** Handles the DIS Elimination rule. If a theorem in the assumptions has DIS as the outer operator and has not been broken apart before,
     generate the new assumption sets and try to prove the theorem again using the DIS ELIM rule*)
 and handle_dis_elim 
-  theorem assumptions usedDIS map = 
+  theorem assumptions usedDIS proofTopMap proofMap = 
 
   (* Filters a set based on the predicate that a theorom had DIS as the outer operator and hasn't been used before.
   Returns an arbitrary element from the set, None if empty *)
@@ -319,38 +351,38 @@ and handle_dis_elim
     (
       let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
 
-      let mapWithLeft = addAssumptionToMap left map in
-      let assumptionsAndMapLeft = gen_new_assumptions assumptions [left] mapWithLeft in match assumptionsAndMapLeft with SET_AND_MAP(assumptionsLeft, newLeftMap) ->
-      let leftProof = prover theorem assumptionsLeft usedDIS newLeftMap in
+      let mapWithLeft = addAssumptionToMap left proofTopMap in
+      match gen_new_assumptions assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptionsLeft, newLeftMap, newLeftProofMap) ->
+      let leftProof = prover theorem assumptionsLeft usedDIS newLeftMap newLeftProofMap in
 
-      let mapWithRight = addAssumptionToMap right map in
-      let assumptionsAndMapRight = gen_new_assumptions assumptions [right] mapWithRight in match assumptionsAndMapRight with SET_AND_MAP(assumptionsRight, newRightMap) ->
-      let rightProof = prover theorem assumptionsRight usedDIS newRightMap in
+      let mapWithRight = addAssumptionToMap right proofTopMap in
+      match gen_new_assumptions assumptions [right] usedDIS mapWithRight proofMap with SET_AND_MAP_AND_MAP(assumptionsRight, newRightMap, newRightProofMap) ->
+      let rightProof = prover theorem assumptionsRight usedDIS newRightMap newRightProofMap in
       if (is_successful leftProof) && (is_successful rightProof)
-        (* TODO: Add proof of foundDis *)
-        then PROOF (DIS_ELIM (DIS (left, right)), [get_proof (DIS (left, right)) map; leftProof; rightProof], 1)
-        else handle_dis_elim theorem assumptions usedDIS map
+        then PROOF (DIS_ELIM (DIS (left, right)), [get_proof (DIS (left, right)) proofTopMap proofMap; leftProof; rightProof], 1)
+        else handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
     )
   | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
 
   and get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth
-  and get_proof_proofTop map proofTop = match proofTop with
+  and get_proof_proofTop proofTopMap proofMap proofTop = match proofTop with
     | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
       (
-        let theoremUsedProof = get_proof theoremUsed map in
-        let conclusionProof = get_proof conclusion map in
+        let theoremUsedProof = get_proof theoremUsed proofTopMap proofMap in
+        let conclusionProof = get_proof conclusion proofTopMap proofMap in
         let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
         PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
       )
-    | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed map in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
-    | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed map in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
+    | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed proofTopMap proofMap in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
+    | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed proofTopMap proofMap in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
     | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
     | _ -> raise (SomethingIsWrong "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
 
-  and get_proof theorem map =
-    let proofTopSet = TheoremMap.find theorem map in
+  and get_proof theorem proofTopMap proofMap =
+    match (TheoremMap.find_opt theorem proofMap) with Some proof -> proof | _ ->
+    let proofTopSet = TheoremMap.find theorem proofTopMap in
     let proofTopList = ProofTopSet.to_list proofTopSet in
-    let proofList = List.map (get_proof_proofTop map) proofTopList in
+    let proofList = List.map (get_proof_proofTop proofTopMap proofMap) proofTopList in
     List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE, [], max_int)) proofList
 
 (** Returns true if the proof is successful, false otherwise *)
@@ -360,11 +392,11 @@ and is_successful
   | _ -> false
 
 (** Removes the current value for theorem in map and replaces it with the ProofTopSet with a single PROOF_TOP with rule ASSUMPTION *)
-and addAssumptionToMap theorem map = TheoremMap.update theorem (fun _ -> Some (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, [])))) map
+and addAssumptionToMap theorem proofTopMap = TheoremMap.update theorem (fun _ -> Some (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, [])))) proofTopMap
 
-(** Calls the prover with an empty assumption set and empty usedDis set *)
+(** Calls the prover with an empty assumption set, empty usedDis set, empty proofTopMap, and empty proofMap *)
 let theorem_to_proof
-  theorem = prover theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty
+  theorem = prover theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty
 
 
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
@@ -504,7 +536,7 @@ let test_theorem
    they have to be overwritten like this. https://v2.ocaml.org/manual/expr.html. Otherwise would have to download and use a dependency *)
 (** Not operator *)
 let ( !! )
-  x = IMP(x, F)
+  x = IMP(x, F, false)
 
 (** Conjunction operator *)
 let ( ** )
@@ -516,7 +548,7 @@ let ( @@ )
 
 (** Implication operator *)
 let ( && ) 
-  x y = IMP(x, y)
+  x y = IMP(x, y, false)
 
 (** S 0 *)
 let a = S 0
