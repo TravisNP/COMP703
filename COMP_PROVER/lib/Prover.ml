@@ -512,9 +512,9 @@ let rec program_to_ocaml_string
   | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ program_to_ocaml_string right ^ "))"
   (* | INL (otherType, injectedProgram) -> "implement me"
   | INR (otherType, injectedProgram) -> "implement me" *)
-  | FST (program) -> "fst " ^ "(" ^ (program_to_ocaml_string program) ^ ")"
-  | SND (program) -> "snd " ^ "(" ^ (program_to_ocaml_string program) ^ ")"
-  | APP (leftProgram, rightProgram) -> "(" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ ")"
+  | FST (program) -> "(fst " ^ "(" ^ (program_to_ocaml_string program) ^ "))"
+  | SND (program) -> "(snd " ^ "(" ^ (program_to_ocaml_string program) ^ "))"
+  | APP (leftProgram, rightProgram) -> "((" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ "))"
   (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
   | _ -> raise (SomethingIsWrong "program_to_ocaml_string: Impossible program definition")
 
