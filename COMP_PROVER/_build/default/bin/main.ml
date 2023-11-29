@@ -2,7 +2,7 @@ open Prover;;
 
 (* Swap theorem example on page 9 of Constructive Logic*)
 let swapTheorem = a ** b && b ** a in
-test_theorem swapTheorem;;
+test_theorem ~maxDepth:10 swapTheorem;;
 
 (* Example of theorem on page 31 of Constructive Logic *)
 let functionSplitTheorem = (a && b ** c) && ((a && b) ** (a && c));;
