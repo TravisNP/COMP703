@@ -32,7 +32,7 @@ type rule =
 
   | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
 
-  | FAILURE (** Signifies proof has failed *)
+  | FAILURE of string (** Signifies proof has failed *)
 
   | CONNECTION (** Connects bottom proof to top proof *)
 
@@ -77,7 +77,7 @@ type setAndMapAndMap =
   | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t
 
 (** Custom exception to print out information to terminal *)
-exception SomethingIsWrong of string
+exception CustomException of string
 
 (** Exception for when the proof fails *)
 exception ProofFailure of string
@@ -114,14 +114,14 @@ let rec proof_to_string
         | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
         | left :: middle :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string middle ^ " " ^ proof_to_string right ^ ")"
         | [] -> ""
-        | _ -> raise (SomethingIsWrong "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
+        | _ -> raise (CustomException "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
       match rule with
       | IMP_INTRO (_) -> "\u{2283}I" ^ inside
       | CON_INTRO -> "\u{2227}I" ^ inside
       | DIS1_INTRO (_) -> "\u{2228}I1" ^ inside
       | DIS2_INTRO (_) -> "\u{2228}I2" ^ inside
       | ASSUMPTION theorem -> parenthesize theorem
-      | FAILURE -> "FAILURE"
+      | FAILURE (message) -> "FAILURE: " ^ message
       | DIS_ELIM (_) -> "\u{2228}E" ^ inside
       | CON1_ELIM -> "\u{2227}E1" ^ inside
       | CON2_ELIM -> "\u{2227}E2" ^ inside
@@ -131,8 +131,8 @@ let rec proof_to_string
           match children with 
           | theorem :: [] -> proof_to_string theorem
           | left :: [right] -> proof_to_string left ^ " " ^ proof_to_string right
-          | [] -> raise (SomethingIsWrong "proof_to_string: PROOF with rule CONNECTION has no children. Impossible")
-          | _ -> raise (SomethingIsWrong "proof_to_string: More than 2 children. Only zero, one, or two children possible with this implementation")
+          | [] -> raise (CustomException "proof_to_string: PROOF with rule CONNECTION has no children. Impossible")
+          | _ -> raise (CustomException "proof_to_string: More than 2 children. Only zero, one, or two children possible with this implementation")
         )
     )
 
@@ -162,8 +162,7 @@ let print_assumptions
 
 (** Generates the new set of assumptions using the CON ELIM and IMP ELIM rules *)
 let rec gen_new_assumptions
-  assumptionSet theoremsToAdd usedDIS proofTopMap proofMap =
-
+  maxDepth assumptionSet theoremsToAdd usedDIS proofTopMap proofMap =
   (* CON Elimination rule. For a list of theorems, adds the children of CON to the list. Does so recursively. For example, [A&(B&C)] returns [A&(B&C),A,B&C,B,C] *)
   let rec handle_con_elim 
     theoremsToAdd proofTopMap = 
@@ -200,11 +199,11 @@ let rec gen_new_assumptions
   let assumptAndMap = handle_con_elim theoremsToAdd proofTopMap in match assumptAndMap with LIST_AND_MAP (assumptions, newMap) ->
   let conElimTheoremsToAdd = AssumptionSet.of_list assumptions in
   let conElimNotInAssumptionSetTheoremsToAdd = AssumptionSet.diff conElimTheoremsToAdd assumptionSet in
-  handle_imp_elim assumptionSet conElimNotInAssumptionSetTheoremsToAdd usedDIS newMap proofMap
+  handle_imp_elim maxDepth assumptionSet conElimNotInAssumptionSetTheoremsToAdd usedDIS newMap proofMap
 
 (** Takes in current assumptions and the new theorems to add as assumptions. Does IMP ELIM rule and feeds any new derived assumptions back into gen_new_assumptions *)
 and handle_imp_elim 
-  assumptionSet newTheoremsToAdd usedDIS proofTopMap proofMap = 
+  maxDepth assumptionSet newTheoremsToAdd usedDIS proofTopMap proofMap = 
   let mapRef = ref proofTopMap in
   let assumptionSet = AssumptionSet.union assumptionSet newTheoremsToAdd in
   let assumptionSetRef = ref assumptionSet in
@@ -216,7 +215,11 @@ and handle_imp_elim
       if hypo_theorem = hypothesis 
         then 
           (
-            mapRef := TheoremMap.add conclusion (ProofTopSet.singleton (PROOF_TOP (IMP_ELIM, [theorem; hypothesis]))) !mapRef;
+            let proofTop = (PROOF_TOP (IMP_ELIM, [theorem; hypothesis])) in
+            let proofTopSet = TheoremMap.find_opt conclusion !mapRef in
+            let () = (match proofTopSet with
+            | None -> mapRef := TheoremMap.add conclusion (ProofTopSet.singleton proofTop) !mapRef;
+            | Some proofTopSet -> mapRef := TheoremMap.add conclusion (ProofTopSet.add proofTop proofTopSet) !mapRef) in
             assumptionSetRef := AssumptionSet.remove theorem !assumptionSetRef;
             assumptionSetRef := AssumptionSet.add (IMP (hypo_theorem, conclusion, true)) !assumptionSetRef;
             Some conclusion 
@@ -257,9 +260,9 @@ and handle_imp_elim
           match theorem with
           | IMP (hypothesis, _, false) -> 
             (
-              let proof = prover hypothesis !assumptionSetRef usedDIS !mapRef !proofMapRef in
+              let proof = prover ~maxDepth:(maxDepth - 1) hypothesis !assumptionSetRef usedDIS !mapRef !proofMapRef in
               match proof with
-              | PROOF (FAILURE, [], _) -> ()
+              | PROOF (FAILURE (_), [], _) -> ()
               | _-> 
                 (
                   proofMapRef := TheoremMap.add hypothesis proof !proofMapRef;
@@ -271,11 +274,10 @@ and handle_imp_elim
           in
         AssumptionSet.iter prove_unproven_imp_hypo !assumptionSetRef;
         if !unlockedFlag
-          then 
-            gen_new_assumptions !assumptionSetRef !provedHypothesises usedDIS !mapRef !proofMapRef
+          then gen_new_assumptions maxDepth !assumptionSetRef !provedHypothesises usedDIS !mapRef !proofMapRef
           else SET_AND_MAP_AND_MAP (!assumptionSetRef, !mapRef, !proofMapRef)
       )
-    else gen_new_assumptions !assumptionSetRef (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) usedDIS !mapRef proofMap
+    else gen_new_assumptions maxDepth !assumptionSetRef (AssumptionSet.to_list impMatchBothConcNotInAssumptionSet) usedDIS !mapRef proofMap
 
 (**  Main proof function.
   If the theorem is an assumption, then get the shortest proof.
@@ -284,55 +286,66 @@ and handle_imp_elim
   If proof fails, do DIS ELIM rule if possible and reconsider theorem. If not possible, then fail.
   Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
 and prover
-  theorem assumptions usedDIS proofTopMap proofMap =
+?(maxDepth = 100) theorem assumptions usedDIS proofTopMap proofMap =
   if AssumptionSet.mem theorem assumptions 
     then 
       ( 
-        PROOF (CONNECTION, [get_proof theorem proofTopMap proofMap], 1)
+        (* print_theorem theorem;
+        print_endline "assumptions:";
+        print_assumptions assumptions;
+        print_endline "proofMap";
+        let proofTopSet0 = TheoremMap.find theorem proofTopMap in
+        print_int (ProofTopSet.cardinal proofTopSet0);
+        print_newline ();
+        match (ProofTopSet.choose proofTopSet0) with PROOF_TOP (_, theoremList) ->
+          print_theorem (List.hd theoremList);
+          print_theorem (List.hd (List.tl theoremList));
+        print_endline "---"; *)
+        PROOF (CONNECTION, [get_proof maxDepth theorem proofTopMap proofMap], 1)
       )
     else
       (
         match theorem with
         | CON (left, right) -> 
           (
-            let leftProof = prover left assumptions usedDIS proofTopMap proofMap in
-            let rightProof = prover right assumptions usedDIS proofTopMap proofMap in
+            let leftProof = prover ~maxDepth:(maxDepth - 1) left assumptions usedDIS proofTopMap proofMap in
+            let rightProof = prover ~maxDepth:(maxDepth - 1) right assumptions usedDIS proofTopMap proofMap in
             let successLeft = is_successful leftProof in
             let successRight = is_successful rightProof in
             if successLeft && successRight
               then PROOF (CON_INTRO, [leftProof; rightProof], 1)
-              else handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
+              else handle_dis_elim maxDepth theorem assumptions usedDIS proofTopMap proofMap
           )
         | IMP (left, right, _) ->
             (
               let mapWithLeft = addAssumptionToMap left proofTopMap in
-              match gen_new_assumptions assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptions, newMap, newProofMap) ->
-              let proof = prover right assumptions usedDIS newMap newProofMap in
+              match gen_new_assumptions maxDepth assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptions, newMap, newProofMap) ->
+              let proof = prover ~maxDepth:(maxDepth - 1) right assumptions usedDIS newMap newProofMap in
               let success = is_successful proof in
               if success
                 then PROOF (IMP_INTRO (left), [proof], 1)
-                else handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
+                else handle_dis_elim maxDepth theorem assumptions usedDIS proofTopMap proofMap
             )
         | DIS (left, right) ->
           (
-            let leftProof = prover left assumptions usedDIS proofTopMap proofMap in
+            let leftProof = prover ~maxDepth:(maxDepth - 1) left assumptions usedDIS proofTopMap proofMap in
             let successLeft = is_successful leftProof in
             if not successLeft
-              then (let rightProof = prover right assumptions usedDIS proofTopMap proofMap in
+              then (let rightProof = prover ~maxDepth:(maxDepth - 1) right assumptions usedDIS proofTopMap proofMap in
                 let successRight = is_successful rightProof in
                 if not successRight
-                  then handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
+                  then handle_dis_elim maxDepth theorem assumptions usedDIS proofTopMap proofMap
                   else PROOF (DIS2_INTRO (left), [rightProof], 1)) 
               else PROOF (DIS1_INTRO (right), [leftProof], 1)
           )
-        | S _ -> handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
-        | F -> handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
+        | S _ -> handle_dis_elim maxDepth theorem assumptions usedDIS proofTopMap proofMap
+        | F -> handle_dis_elim maxDepth theorem assumptions usedDIS proofTopMap proofMap
       )
 
 (** Handles the DIS Elimination rule. If a theorem in the assumptions has DIS as the outer operator and has not been broken apart before,
     generate the new assumption sets and try to prove the theorem again using the DIS ELIM rule*)
 and handle_dis_elim 
-  theorem assumptions usedDIS proofTopMap proofMap = 
+maxDepth theorem assumptions usedDIS proofTopMap proofMap = 
 
   (* Filters a set based on the predicate that a theorom had DIS as the outer operator and hasn't been used before.
   Returns an arbitrary element from the set, None if empty *)
@@ -346,44 +359,46 @@ and handle_dis_elim
      If one does exist, do DIS ELIM rule. If fails, repeat until success or failure *)
   let foundDis = get_dis assumptions usedDIS in
   match foundDis with
-  | None -> PROOF (FAILURE, [], 0)
+  | None -> PROOF (FAILURE "Could not be proven", [], 0)
   | Some DIS (left, right) -> 
     (
       let usedDIS = AssumptionSet.add (DIS (left, right)) usedDIS in
 
       let mapWithLeft = addAssumptionToMap left proofTopMap in
-      match gen_new_assumptions assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptionsLeft, newLeftMap, newLeftProofMap) ->
-      let leftProof = prover theorem assumptionsLeft usedDIS newLeftMap newLeftProofMap in
+      match gen_new_assumptions maxDepth assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptionsLeft, newLeftMap, newLeftProofMap) ->
+      let leftProof = prover ~maxDepth:(maxDepth - 1) theorem assumptionsLeft usedDIS newLeftMap newLeftProofMap in
 
       let mapWithRight = addAssumptionToMap right proofTopMap in
-      match gen_new_assumptions assumptions [right] usedDIS mapWithRight proofMap with SET_AND_MAP_AND_MAP(assumptionsRight, newRightMap, newRightProofMap) ->
-      let rightProof = prover theorem assumptionsRight usedDIS newRightMap newRightProofMap in
+      match gen_new_assumptions maxDepth assumptions [right] usedDIS mapWithRight proofMap with SET_AND_MAP_AND_MAP(assumptionsRight, newRightMap, newRightProofMap) ->
+      let rightProof = prover ~maxDepth:(maxDepth - 1) theorem assumptionsRight usedDIS newRightMap newRightProofMap in
       if (is_successful leftProof) && (is_successful rightProof)
-        then PROOF (DIS_ELIM (DIS (left, right)), [get_proof (DIS (left, right)) proofTopMap proofMap; leftProof; rightProof], 1)
-        else handle_dis_elim theorem assumptions usedDIS proofTopMap proofMap
+        then PROOF (DIS_ELIM (DIS (left, right)), [get_proof (maxDepth - 1) (DIS (left, right)) proofTopMap proofMap; leftProof; rightProof], 1)
+        else handle_dis_elim maxDepth theorem assumptions usedDIS proofTopMap proofMap
     )
-  | _ -> raise (SomethingIsWrong "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
+  | _ -> raise (CustomException "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
 
   and get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth
-  and get_proof_proofTop proofTopMap proofMap proofTop = match proofTop with
+  and get_proof_proofTop maxDepth proofTopMap proofMap proofTop = 
+    if maxDepth = -1 then PROOF (FAILURE ("Depth limit exceeded"), [], max_int) else
+    match proofTop with
     | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
       (
-        let theoremUsedProof = get_proof theoremUsed proofTopMap proofMap in
-        let conclusionProof = get_proof conclusion proofTopMap proofMap in
+        let theoremUsedProof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in
+        let conclusionProof = get_proof (maxDepth - 1) conclusion proofTopMap proofMap in
         let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
         PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
       )
-    | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed proofTopMap proofMap in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
-    | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof theoremUsed proofTopMap proofMap in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
+    | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
+    | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
     | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
-    | _ -> raise (SomethingIsWrong "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
+    | _ -> raise (CustomException "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
 
-  and get_proof theorem proofTopMap proofMap =
+  and get_proof maxDepth theorem proofTopMap proofMap =
     match (TheoremMap.find_opt theorem proofMap) with Some proof -> proof | _ ->
     let proofTopSet = TheoremMap.find theorem proofTopMap in
     let proofTopList = ProofTopSet.to_list proofTopSet in
-    let proofList = List.map (get_proof_proofTop proofTopMap proofMap) proofTopList in
-    List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE, [], max_int)) proofList
+    let proofList = List.map (get_proof_proofTop maxDepth proofTopMap proofMap) proofTopList in
+    List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE "", [], max_int)) proofList
 
 (** Returns true if the proof is successful, false otherwise *)
 and is_successful
@@ -396,7 +411,7 @@ and addAssumptionToMap theorem proofTopMap = TheoremMap.update theorem (fun _ ->
 
 (** Calls the prover with an empty assumption set, empty usedDis set, empty proofTopMap, and empty proofMap *)
 let theorem_to_proof
-  theorem = prover theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty
+  ?(maxDepth = 10) theorem = prover ~maxDepth:maxDepth theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty
 
 
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
@@ -462,20 +477,20 @@ let rec program_extractor
           let newMap = !mapRef in
           CASE (program_extractor newMap leftRightProof, program_extractor newMap leftProof, program_extractor newMap rightProof, VAR theoremTagLeft, VAR theoremTagRight)
         )
-      | _ -> raise (SomethingIsWrong "program_extractor: Non dis theorem used in DIS_ELIM rule")
+      | _ -> raise (CustomException "program_extractor: Non dis theorem used in DIS_ELIM rule")
     )
   | PROOF (CONNECTION, [proof], _) -> program_extractor_same_map proof
-  | PROOF (ASSUMPTION _, _, _) -> raise (SomethingIsWrong "program_extractor: Assumption rule does not have 0 children")
-  | PROOF (CON_INTRO, _, _) -> raise (SomethingIsWrong "program_extractor: CON_INTRO rule does not have 2 children")
-  | PROOF (IMP_INTRO (_), _, _) -> raise (SomethingIsWrong "program_extractor: IMP_INTRO rule does not have 1 child")
-  | PROOF (DIS1_INTRO (_), _, _) -> raise(SomethingIsWrong "program_extractor: DIS1_INTRO rule does not have 1 child")
-  | PROOF (DIS2_INTRO (_), _, _) -> raise(SomethingIsWrong "program_extractor: DIS2_INTRO rule does not have 1 child")
-  | PROOF (CON1_ELIM, _, _) -> raise(SomethingIsWrong "program_extractor: CON1_ELIM rule does not have 1 child")
-  | PROOF (CON2_ELIM, _, _) -> raise(SomethingIsWrong "program_extractor: CON2_ELIM rule does not have 1 child")
-  | PROOF (IMP_ELIM, _, _) -> raise(SomethingIsWrong "program_extractor: IMP_ELIM rule does not have 2 children")
-  | PROOF (DIS_ELIM (_), _, _) -> raise(SomethingIsWrong "program_extractor: DIS_ELIM rule does not have 3 children")
-  | PROOF (FAILURE, _, _) -> raise(SomethingIsWrong "program_extractor: FAILURE rule used")
-  | PROOF (CONNECTION, _, _) -> raise(SomethingIsWrong "program_extractor: CONNECTION rule does not have 1 child")
+  | PROOF (ASSUMPTION _, _, _) -> raise (CustomException "program_extractor: Assumption rule does not have 0 children")
+  | PROOF (CON_INTRO, _, _) -> raise (CustomException "program_extractor: CON_INTRO rule does not have 2 children")
+  | PROOF (IMP_INTRO (_), _, _) -> raise (CustomException "program_extractor: IMP_INTRO rule does not have 1 child")
+  | PROOF (DIS1_INTRO (_), _, _) -> raise(CustomException "program_extractor: DIS1_INTRO rule does not have 1 child")
+  | PROOF (DIS2_INTRO (_), _, _) -> raise(CustomException "program_extractor: DIS2_INTRO rule does not have 1 child")
+  | PROOF (CON1_ELIM, _, _) -> raise(CustomException "program_extractor: CON1_ELIM rule does not have 1 child")
+  | PROOF (CON2_ELIM, _, _) -> raise(CustomException "program_extractor: CON2_ELIM rule does not have 1 child")
+  | PROOF (IMP_ELIM, _, _) -> raise(CustomException "program_extractor: IMP_ELIM rule does not have 2 children")
+  | PROOF (DIS_ELIM (_), _, _) -> raise(CustomException "program_extractor: DIS_ELIM rule does not have 3 children")
+  | PROOF (FAILURE (message), _, _) -> raise(CustomException ("program_extractor: FAILURE rule used - " ^ message))
+  | PROOF (CONNECTION, _, _) -> raise(CustomException "program_extractor: CONNECTION rule does not have 1 child")
 
 (** Gets the next theoremTag if one does not exist for the IMP INTRO and DIS ELIM rules. If one does exist, returns it *)
 and get_theoremTag
@@ -512,11 +527,11 @@ let rec program_to_ocaml_string
   | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ program_to_ocaml_string right ^ "))"
   (* | INL (otherType, injectedProgram) -> "implement me"
   | INR (otherType, injectedProgram) -> "implement me" *)
-  | FST (program) -> "(fst " ^ "(" ^ (program_to_ocaml_string program) ^ "))"
-  | SND (program) -> "(snd " ^ "(" ^ (program_to_ocaml_string program) ^ "))"
+  | FST (program) -> "(fst " ^ (program_to_ocaml_string program) ^ ")"
+  | SND (program) -> "(snd " ^ (program_to_ocaml_string program) ^ ")"
   | APP (leftProgram, rightProgram) -> "((" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ "))"
   (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
-  | _ -> raise (SomethingIsWrong "program_to_ocaml_string: Impossible program definition")
+  | _ -> raise (CustomException "program_to_ocaml_string: Impossible program definition")
 
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem
