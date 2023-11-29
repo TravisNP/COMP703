@@ -287,6 +287,7 @@ and handle_imp_elim
   Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
 and prover
 ?(maxDepth = 100) theorem assumptions usedDIS proofTopMap proofMap =
+  if maxDepth < 0 then PROOF (FAILURE "Depth limit exceeded in prover", [], 0) else
   if AssumptionSet.mem theorem assumptions 
     then PROOF (CONNECTION, [get_proof maxDepth theorem proofTopMap proofMap], 1)
     else
@@ -362,7 +363,7 @@ maxDepth theorem assumptions usedDIS proofTopMap proofMap =
 
   and get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth
   and get_proof_proofTop maxDepth proofTopMap proofMap proofTop = 
-    if maxDepth = -1 then PROOF (FAILURE ("Depth limit exceeded"), [], max_int) else
+    if maxDepth = -1 then PROOF (FAILURE ("Depth limit exceeded in getting proof"), [], max_int) else
     match proofTop with
     | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
       (

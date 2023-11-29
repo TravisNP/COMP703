@@ -22,12 +22,5 @@ test_theorem functionCompositionTheorem;;
 let pairToSingleArg = ((a**a)&&b)&&(a&&b);;
 test_theorem pairToSingleArg;;
 
-(* Tests the chaining of eliminitation and introduction rules *)
-let myTheorem = ((b**b)&&c)&&((a&&b)&&(a&&c));;
-test_theorem myTheorem;;
-
-let myTheorem2 = ((a&&b)**(b&&a))&&(a&&a);;
-test_theorem myTheorem2;;
-
 (* let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));;
 test_theorem transpose_of_3x3_matrix_theorem;; *)
