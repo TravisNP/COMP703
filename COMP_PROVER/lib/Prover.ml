@@ -285,7 +285,8 @@ and handle_imp_elim
   Else check if theorem is of type CON, IMP, DIS, or S.
   Do INTRO rule corresponding to type CON, IMP, or DIS.
   If proof fails, do DIS ELIM rule if possible and reconsider theorem. If not possible, then fail.
-  Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
+  Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions.
+  Also, try to prove the hypothesis of any unbroken IMP assumption *)
 and prover
 ?(maxDepth = 100) theorem assumptions usedDIS proofTopMap proofMap =
   if maxDepth < 0 then PROOF (FAILURE "Depth limit exceeded in prover", [], max_int) else
@@ -363,28 +364,35 @@ maxDepth theorem assumptions usedDIS proofTopMap proofMap =
     )
   | _ -> raise (CustomException "handle_dis_elim: DIS Theorem found in assumptions doesn't match None or DIS (left, right, false)")
 
-  and get_depth_proof proof = match proof with PROOF (_, _, depth) -> depth
-  and get_proof_proofTop maxDepth proofTopMap proofMap proofTop = 
-    if maxDepth = -1 then PROOF (FAILURE ("Depth limit exceeded in getting proof"), [], max_int) else
-    match proofTop with
-    | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
-      (
-        let theoremUsedProof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in
-        let conclusionProof = get_proof (maxDepth - 1) conclusion proofTopMap proofMap in
-        let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
-        PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
-      )
-    | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
-    | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
-    | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
-    | _ -> raise (CustomException "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
+(** Gets the depth of a proof *)
+and get_depth_proof 
+  proof = match proof with PROOF (_, _, depth) -> depth
 
-  and get_proof maxDepth theorem proofTopMap proofMap =
-    match (TheoremMap.find_opt theorem proofMap) with Some proof -> proof | _ ->
-    let proofTopSet = TheoremMap.find theorem proofTopMap in
-    let proofTopList = ProofTopSet.to_list proofTopSet in
-    let proofList = List.map (get_proof_proofTop maxDepth proofTopMap proofMap) proofTopList in
-    List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE "", [], max_int)) proofList
+(** Converts proofTop to type proof *)
+and get_proof_proofTop 
+  maxDepth proofTopMap proofMap proofTop = 
+  if maxDepth = -1 then PROOF (FAILURE ("Depth limit exceeded in getting proof"), [], max_int) else
+  match proofTop with
+  | PROOF_TOP (IMP_ELIM, [theoremUsed; conclusion]) -> 
+    (
+      let theoremUsedProof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in
+      let conclusionProof = get_proof (maxDepth - 1) conclusion proofTopMap proofMap in
+      let depth = max (get_depth_proof theoremUsedProof) (get_depth_proof conclusionProof) in
+      PROOF (IMP_ELIM, [theoremUsedProof; conclusionProof], depth)
+    )
+  | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in PROOF (CON1_ELIM, [proof], get_depth_proof proof)
+  | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepth - 1) theoremUsed proofTopMap proofMap in PROOF (CON2_ELIM, [proof], get_depth_proof proof)
+  | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], 0)
+  | _ -> raise (CustomException "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
+
+(** Gets the shortest proof of a theorem *)
+and get_proof 
+  maxDepth theorem proofTopMap proofMap =
+  match (TheoremMap.find_opt theorem proofMap) with Some proof -> proof | _ ->
+  let proofTopSet = TheoremMap.find theorem proofTopMap in
+  let proofTopList = ProofTopSet.to_list proofTopSet in
+  let proofList = List.map (get_proof_proofTop maxDepth proofTopMap proofMap) proofTopList in
+  List.fold_left (fun prf1 prf2 -> if get_depth_proof prf1 < get_depth_proof prf2 then prf1 else prf2) (PROOF (FAILURE "", [], max_int)) proofList
 
 (** Returns true if the proof is successful, false otherwise *)
 and is_successful
@@ -395,10 +403,17 @@ and is_successful
 (** Removes the current value for theorem in map and replaces it with the ProofTopSet with a single PROOF_TOP with rule ASSUMPTION *)
 and addAssumptionToMap theorem proofTopMap = TheoremMap.update theorem (fun _ -> Some (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, [])))) proofTopMap
 
+(** Gets rid of the connection rule used in the proof *)
+let rec proof_to_proof_no_connection
+  proof = match proof with 
+  | PROOF (CONNECTION, [child], _) -> proof_to_proof_no_connection child
+  | PROOF (rule, children, num) -> PROOF (rule, List.map proof_to_proof_no_connection children, num)
+
 (** Calls the prover with an empty assumption set, empty usedDis set, empty proofTopMap, and empty proofMap *)
 let theorem_to_proof
-  ?(maxDepth = 100) theorem = prover ~maxDepth:maxDepth theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty
-
+  ?(maxDepth = 100) theorem = 
+  let proof = prover ~maxDepth:maxDepth theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty in
+  proof_to_proof_no_connection proof
 
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
 
