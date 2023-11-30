@@ -258,9 +258,10 @@ and handle_imp_elim
         let provedHypothesises = ref [] in
         let prove_unproven_imp_hypo theorem =
           match theorem with
-          | IMP (hypothesis, _, false) -> 
+          | IMP (hypothesis, conclusion, false) -> 
             (
-              let proof = prover ~maxDepth:(maxDepth - 1) hypothesis !assumptionSetRef usedDIS !mapRef !proofMapRef in
+              let tempAssumptionSet = AssumptionSet.add (IMP (hypothesis, conclusion, true)) (AssumptionSet.remove theorem !assumptionSetRef) in
+              let proof = prover ~maxDepth:(maxDepth - 1) hypothesis tempAssumptionSet usedDIS !mapRef !proofMapRef in
               match proof with
               | PROOF (FAILURE (_), [], _) -> ()
               | _-> 
@@ -287,7 +288,7 @@ and handle_imp_elim
   Each time the IMP INTRO and DIS ELIM rule happen, add to Assumptions and use CON ELIM and IMP ELIM to add anymore to assumptions *)
 and prover
 ?(maxDepth = 100) theorem assumptions usedDIS proofTopMap proofMap =
-  if maxDepth < 0 then PROOF (FAILURE "Depth limit exceeded in prover", [], 0) else
+  if maxDepth < 0 then PROOF (FAILURE "Depth limit exceeded in prover", [], max_int) else
   if AssumptionSet.mem theorem assumptions 
     then PROOF (CONNECTION, [get_proof maxDepth theorem proofTopMap proofMap], 1)
     else
@@ -303,6 +304,7 @@ and prover
           )
         | IMP (left, right, _) ->
             (
+              (* print_theorem left; *)
               let mapWithLeft = addAssumptionToMap left proofTopMap in
               match gen_new_assumptions maxDepth assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptions, newMap, newProofMap) ->
               let proof = prover ~maxDepth:(maxDepth - 1) right assumptions usedDIS newMap newProofMap in

@@ -20,10 +20,14 @@ let functionCompositionTheorem = ((a && b) ** (b && c)) && (a && c);;
 test_theorem functionCompositionTheorem;;
 
 let pairToSingleArg = ((a**a)&&b)&&(a&&b);;
-test_theorem pairToSingleArg;; *)
+test_theorem pairToSingleArg;;
 
-let myTheorem = ((a&&b)&&c)&&(c&&d)&&(a&&b)&&d;;
-test_theorem myTheorem;;
+let myTheorem = (d&&c)**(c&&b)**(b&&a)&&d&&a;;
+test_theorem myTheorem;; *)
+
+let myTheorem2 = ((c&&b)&&a)&&((d**c)&&b)&&d&&c&&a;;
+let proof = theorem_to_proof ~maxDepth:5 myTheorem2;;
+print_proof proof;;
 
 (* let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));;
 test_theorem transpose_of_3x3_matrix_theorem;; *)
