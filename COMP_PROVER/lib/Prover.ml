@@ -534,6 +534,10 @@ let rec program_to_ocaml_string
   (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
   | _ -> raise (CustomException "program_to_ocaml_string: Impossible program definition")
 
+(** Converts a theorem to it's corresponding program in OCaml *)
+let theorem_to_ocaml_string
+  theorem = program_to_ocaml_string (theorem_to_program theorem)
+
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem
   ?(maxDepth = 100) theorem = 
