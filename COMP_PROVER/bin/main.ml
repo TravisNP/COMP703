@@ -25,9 +25,13 @@ test_theorem pairToSingleArg;;
 let myTheorem = (d&&c)**(c&&b)**(b&&a)&&d&&a;;
 test_theorem myTheorem;;
 
-let myTheorem2 = ((c&&b)&&a)&&((d**c)&&b)&&d&&c&&a;;
+let myTheorem2 = (a**b**c**d**e)&&(e@@a);;
 let proof = theorem_to_proof myTheorem2;;
 print_proof proof;;
 
 (* let transpose_of_3x3_matrix_theorem = ((a**b**c)**(d**e**f)**(g**h**i)) && ((a**d**g)**(b**e**h)**(c**f**i));;
 test_theorem transpose_of_3x3_matrix_theorem;; *)
+
+(* type intFloat = I of int | F of float
+let testMe x = match x with I x -> I (x*2) | F x -> F (x -. 1.);;
+match testMe (I 9) with I x -> print_int x | F x -> print_float x;; *)
