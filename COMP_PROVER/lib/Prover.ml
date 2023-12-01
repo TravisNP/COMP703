@@ -34,8 +34,6 @@ type rule =
 
   | FAILURE of string (** Signifies proof has failed *)
 
-  | CONNECTION (** Connects bottom proof to top proof *)
-
 (** proof data type *)
 type proof = 
 
@@ -135,14 +133,6 @@ let rec proof_to_string
       | CON1_ELIM -> "\u{2227}E1" ^ inside
       | CON2_ELIM -> "\u{2227}E2" ^ inside
       | IMP_ELIM -> "\u{2283}E" ^ inside
-      | CONNECTION -> 
-        (
-          match children with 
-          | theorem :: [] -> proof_to_string theorem
-          | left :: [right] -> proof_to_string left ^ " " ^ proof_to_string right
-          | [] -> raise (WrongChildrenAmount "proof_to_string: PROOF with rule CONNECTION has no children. Impossible")
-          | _ -> raise (WrongChildrenAmount "proof_to_string: PROOF with rule CONNECTION has more than 2 children. Only one or two children possible with this implementation")
-        )
     )
 
 (** Prints theorem to terminal *)
@@ -292,11 +282,7 @@ and prover
 ?(maxDepthIntro = 100) theorem assumptions usedDIS proofTopMap proofMap =
   if maxDepthIntro < 0 then PROOF (FAILURE "Depth limit exceeded in prover", [], false, max_int) else
   if AssumptionSet.mem theorem assumptions 
-    then 
-      (
-        let proof = get_proof maxDepthIntro theorem proofTopMap proofMap in
-        PROOF (CONNECTION, [proof], true, get_depth_proof proof)
-      )
+    then get_proof maxDepthIntro theorem proofTopMap proofMap
     else
       (
         match theorem with
@@ -420,17 +406,9 @@ and is_successful
 (** Removes the current value for theorem in map and replaces it with the ProofTopSet with a single PROOF_TOP with rule ASSUMPTION *)
 and addAssumptionToMap theorem proofTopMap = TheoremMap.update theorem (fun _ -> Some (ProofTopSet.singleton (PROOF_TOP (ASSUMPTION theorem, [])))) proofTopMap
 
-(** Gets rid of the connection rule used in the proof *)
-let rec proof_to_proof_no_connection
-  proof = match proof with 
-  | PROOF (CONNECTION, [child], _, _) -> proof_to_proof_no_connection child
-  | PROOF (rule, children, succ, num) -> PROOF (rule, List.map proof_to_proof_no_connection children, succ, num)
-
 (** Calls the prover with an empty assumption set, empty usedDis set, empty proofTopMap, and empty proofMap *)
 let theorem_to_proof
-  ?(maxDepthIntro = 100) theorem = 
-  let proof = prover ~maxDepthIntro:maxDepthIntro theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty in
-  proof_to_proof_no_connection proof
+  ?(maxDepthIntro = 100) theorem = prover ~maxDepthIntro:maxDepthIntro theorem AssumptionSet.empty AssumptionSet.empty TheoremMap.empty TheoremMap.empty
 
 (* Code extraction -------------------------------------------------------------------------------------------------------------------------------------*)
 
@@ -497,7 +475,6 @@ let rec program_extractor
         )
       | _ -> raise (CustomException "program_extractor: Non dis theorem used in DIS_ELIM rule")
     )
-  | PROOF (CONNECTION, [proof], _, _) -> program_extractor_same_map proof
   | PROOF (ASSUMPTION _, _, _, _) -> raise (WrongChildrenAmount "program_extractor: Assumption rule does not have 0 children")
   | PROOF (CON_INTRO, _, _, _) -> raise (WrongChildrenAmount "program_extractor: CON_INTRO rule does not have 2 children")
   | PROOF (IMP_INTRO (_), _, _, _) -> raise (WrongChildrenAmount "program_extractor: IMP_INTRO rule does not have 1 child")
@@ -508,7 +485,6 @@ let rec program_extractor
   | PROOF (IMP_ELIM, _, _, _) -> raise(WrongChildrenAmount "program_extractor: IMP_ELIM rule does not have 2 children")
   | PROOF (DIS_ELIM (_), _, _, _) -> raise(WrongChildrenAmount "program_extractor: DIS_ELIM rule does not have 3 children")
   | PROOF (FAILURE (message), _, _, _) -> raise(ProofFailure ("program_extractor: FAILURE rule used - " ^ message))
-  | PROOF (CONNECTION, _, _, _) -> raise(WrongChildrenAmount "program_extractor: CONNECTION rule does not have 1 child")
 
 (** Gets the next theoremTag if one does not exist for the IMP INTRO and DIS ELIM rules. If one does exist, returns it *)
 and get_theoremTag
