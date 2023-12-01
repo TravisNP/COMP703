@@ -1,11 +1,11 @@
 (** theorem data type *)
 type theorem =
 
-  | CON of theorem * theorem (** Conjunction constructor *)
+  | CON of theorem * theorem (** Conjunction constructor - left, right *)
 
-  | DIS of theorem * theorem (** Disjunction constructor *)
+  | DIS of theorem * theorem (** Disjunction constructor - left, right *)
 
-  | IMP of theorem * theorem * bool (** Implication constructor *)
+  | IMP of theorem * theorem * bool (** Implication constructor - hypothesis, conclusion, hypothesis proven *)
 
   | S of int (** Singleton proposition constructor *)
 
@@ -16,11 +16,11 @@ type rule =
 
   | CON_INTRO (** Conjuction introduction rule *)
 
-  | DIS1_INTRO of theorem (** Left disjunction introduction rule *)
+  | DIS1_INTRO of theorem (** Left disjunction introduction rule - Right side of DIS theorem *)
 
-  | DIS2_INTRO of theorem (** Right disjunction introduction rule *)
+  | DIS2_INTRO of theorem (** Right disjunction introduction rule - Left side of DIS theorem *)
 
-  | IMP_INTRO of theorem (** Implication introduction rule *)
+  | IMP_INTRO of theorem (** Implication introduction rule - hypothesis of IMP theorem *)
 
   | IMP_ELIM  (** Implication elimination rule *)
 
@@ -28,11 +28,11 @@ type rule =
 
   | CON2_ELIM (** Right conjunction elimination rule *)
 
-  | DIS_ELIM of theorem (** Disjunction elimination rule *)
+  | DIS_ELIM of theorem (** Disjunction elimination rule - DIS theorem being broken apart *)
 
-  | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
+  | ASSUMPTION of theorem (** Assumption rule - assumption *)
 
-  | FAILURE of string (** Signifies proof has failed *)
+  | FAILURE of string (** Signifies proof has failed - message *)
 
 (** proof data type *)
 type proof = 
@@ -71,12 +71,12 @@ module TheoremMap = Map.Make (Theorem);;
 (** Type containing a set of theorems, a map of theorems to prooftops, and a map of theorems to proofs - use to pass data back from gen new assumptions *)
 type setAndMapAndMap = 
 
-  | SET_AND_MAP_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t * proof TheoremMap.t
+  | SET_AND_MAP_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t * proof TheoremMap.t (** Assumptions, Map of theorem to ProofTopSet (tracks CON and IMP ELIM), Map of theorem to proof (tracks all INTRO and DIS ELIM)*)
 
 (** Type containing a list of theorems and a map of theorems to proofTop sets. Used in handling con elim rule *)
   type listAndMap = 
 
-  | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t
+  | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t (** Assumptions, Map of theorem to ProofTopSet *)
 
 (** Custom exception to print out information to terminal *)
 exception CustomException of string
