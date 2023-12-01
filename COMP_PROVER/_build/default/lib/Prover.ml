@@ -39,12 +39,16 @@ type rule =
 (** proof data type *)
 type proof = 
 
-  PROOF of rule * proof list * bool * int (** Rule used, the proofs of the theorems used, the success of the proof, the depth of the proof *)
+  PROOF of rule (* Rule used *)
+          * proof list (* Proof of the theorem *)
+          * bool (* Success of the proof *)
+          * int (* Depth of the proof *)
 
 (** temp proof data type when keeping track of IMP and CON ELIM rules *)
 type proof_top = 
 
-  PROOF_TOP of rule * theorem list (** Rule used, the theorems used in the proof*)
+  PROOF_TOP of rule (* Rule used *)
+              * theorem list (* All possible theorems this theorem can be derived from *)
 
 
 
@@ -71,13 +75,18 @@ type setAndMapAndMap =
 
   | SET_AND_MAP_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t * proof TheoremMap.t
 
-(** Type containing a list of theorems and a map of theorems to proofs *)
+(** Type containing a list of theorems and a map of theorems to proofTop sets. Used in handling con elim rule *)
   type listAndMap = 
 
   | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t
 
 (** Custom exception to print out information to terminal *)
 exception CustomException of string
+
+(** Exception for when a rule is used where it is not supposed to *)
+exception IncorrectRuleUsage of string
+
+exception WrongChildrenAmount of string
 
 (** Exception for when the proof fails *)
 exception ProofFailure of string
@@ -114,7 +123,7 @@ let rec proof_to_string
         | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
         | left :: middle :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string middle ^ " " ^ proof_to_string right ^ ")"
         | [] -> ""
-        | _ -> raise (CustomException "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
+        | _ -> raise (WrongChildrenAmount "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
       match rule with
       | IMP_INTRO (_) -> "\u{2283}I" ^ inside
       | CON_INTRO -> "\u{2227}I" ^ inside
@@ -126,14 +135,14 @@ let rec proof_to_string
       | CON1_ELIM -> "\u{2227}E1" ^ inside
       | CON2_ELIM -> "\u{2227}E2" ^ inside
       | IMP_ELIM -> "\u{2283}E" ^ inside
-      | CONNECTION -> 
-        (
+      | CONNECTION -> inside
+        (* (
           match children with 
           | theorem :: [] -> proof_to_string theorem
           | left :: [right] -> proof_to_string left ^ " " ^ proof_to_string right
-          | [] -> raise (CustomException "proof_to_string: PROOF with rule CONNECTION has no children. Impossible")
-          | _ -> raise (CustomException "proof_to_string: More than 2 children. Only zero, one, or two children possible with this implementation")
-        )
+          | [] -> raise (WrongChildrenAmount "proof_to_string: PROOF with rule CONNECTION has no children. Impossible")
+          | _ -> raise (WrongChildrenAmount "proof_to_string: PROOF with rule CONNECTION has more than 2 children. Only one or two children possible with this implementation")
+        ) *)
     )
 
 (** Prints theorem to terminal *)
@@ -400,7 +409,7 @@ and get_proof_proofTop
   | PROOF_TOP (CON1_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepthIntro - 1) theoremUsed proofTopMap proofMap in PROOF (CON1_ELIM, [proof], true, get_depth_proof proof + 1)
   | PROOF_TOP (CON2_ELIM, [theoremUsed]) -> let proof = get_proof (maxDepthIntro - 1) theoremUsed proofTopMap proofMap in PROOF (CON2_ELIM, [proof], true, get_depth_proof proof + 1)
   | PROOF_TOP (ASSUMPTION assumption, []) -> PROOF (ASSUMPTION assumption, [], true, 0)
-  | _ -> raise (CustomException "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
+  | _ -> raise (IncorrectRuleUsage "get_proof_proofTop: rule used in PROOF_TOP that is not IMP or CON ELIM or ASSUMPTION. Impossible")
 
 (** Gets the shortest proof of a theorem *)
 and get_proof 
@@ -497,17 +506,17 @@ let rec program_extractor
       | _ -> raise (CustomException "program_extractor: Non dis theorem used in DIS_ELIM rule")
     )
   | PROOF (CONNECTION, [proof], _, _) -> program_extractor_same_map proof
-  | PROOF (ASSUMPTION _, _, _, _) -> raise (CustomException "program_extractor: Assumption rule does not have 0 children")
-  | PROOF (CON_INTRO, _, _, _) -> raise (CustomException "program_extractor: CON_INTRO rule does not have 2 children")
-  | PROOF (IMP_INTRO (_), _, _, _) -> raise (CustomException "program_extractor: IMP_INTRO rule does not have 1 child")
-  | PROOF (DIS1_INTRO (_), _, _, _) -> raise(CustomException "program_extractor: DIS1_INTRO rule does not have 1 child")
-  | PROOF (DIS2_INTRO (_), _, _, _) -> raise(CustomException "program_extractor: DIS2_INTRO rule does not have 1 child")
-  | PROOF (CON1_ELIM, _, _, _) -> raise(CustomException "program_extractor: CON1_ELIM rule does not have 1 child")
-  | PROOF (CON2_ELIM, _, _, _) -> raise(CustomException "program_extractor: CON2_ELIM rule does not have 1 child")
-  | PROOF (IMP_ELIM, _, _, _) -> raise(CustomException "program_extractor: IMP_ELIM rule does not have 2 children")
-  | PROOF (DIS_ELIM (_), _, _, _) -> raise(CustomException "program_extractor: DIS_ELIM rule does not have 3 children")
-  | PROOF (FAILURE (message), _, _, _) -> raise(CustomException ("program_extractor: FAILURE rule used - " ^ message))
-  | PROOF (CONNECTION, _, _, _) -> raise(CustomException "program_extractor: CONNECTION rule does not have 1 child")
+  | PROOF (ASSUMPTION _, _, _, _) -> raise (WrongChildrenAmount "program_extractor: Assumption rule does not have 0 children")
+  | PROOF (CON_INTRO, _, _, _) -> raise (WrongChildrenAmount "program_extractor: CON_INTRO rule does not have 2 children")
+  | PROOF (IMP_INTRO (_), _, _, _) -> raise (WrongChildrenAmount "program_extractor: IMP_INTRO rule does not have 1 child")
+  | PROOF (DIS1_INTRO (_), _, _, _) -> raise(WrongChildrenAmount "program_extractor: DIS1_INTRO rule does not have 1 child")
+  | PROOF (DIS2_INTRO (_), _, _, _) -> raise(WrongChildrenAmount "program_extractor: DIS2_INTRO rule does not have 1 child")
+  | PROOF (CON1_ELIM, _, _, _) -> raise(WrongChildrenAmount "program_extractor: CON1_ELIM rule does not have 1 child")
+  | PROOF (CON2_ELIM, _, _, _) -> raise(WrongChildrenAmount "program_extractor: CON2_ELIM rule does not have 1 child")
+  | PROOF (IMP_ELIM, _, _, _) -> raise(WrongChildrenAmount "program_extractor: IMP_ELIM rule does not have 2 children")
+  | PROOF (DIS_ELIM (_), _, _, _) -> raise(WrongChildrenAmount "program_extractor: DIS_ELIM rule does not have 3 children")
+  | PROOF (FAILURE (message), _, _, _) -> raise(ProofFailure ("program_extractor: FAILURE rule used - " ^ message))
+  | PROOF (CONNECTION, _, _, _) -> raise(WrongChildrenAmount "program_extractor: CONNECTION rule does not have 1 child")
 
 (** Gets the next theoremTag if one does not exist for the IMP INTRO and DIS ELIM rules. If one does exist, returns it *)
 and get_theoremTag

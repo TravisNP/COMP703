@@ -3,7 +3,7 @@
 # Shared cache: disabled
 # Workspace root: /home/pencetn/Desktop/OCamlThings/COMP_PROVER
 # Auto-detected concurrency: 16
-$ /home/pencetn/.opam/default/bin/ocamlc.opt -config > /tmp/dune_68f8ea_output
+$ /home/pencetn/.opam/default/bin/ocamlc.opt -config > /tmp/dune_28ec93_output
 # Dune context:
 #  { name = "default"
 #  ; kind = "default"
