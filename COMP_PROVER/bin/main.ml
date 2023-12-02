@@ -38,5 +38,5 @@ time test_theorem myTheorem2;;
 
 let transpose_of_2x2_or_3x3_matrix_theorem = (a**b**c)**(d**e**f)**(g**h**i) @@ (j**k)**(l**m) && (a**d**g)**(b**e**h)**(c**f**i) @@ (j**l)**(k**m);;
 time test_theorem transpose_of_2x2_or_3x3_matrix_theorem;;
-let _ = ((1,(2,3)),((4,(5,6)),(7,(8,9))))
-let _ = ((1,2),(3,4))
+let _ = ((1,(2,3)),((4,(5,6)),(7,(8,9))));;
+let _ = ((1,2),(3,4));;
