@@ -433,6 +433,7 @@ type program =
 
   | CASE of program * program * program * program * program (** Matches the first program with either the fourth (returns second) or fifth (returns third) program. *)
 
+type ('a, 'b) sum = | Left  of 'a | Right of 'b;;
 
 (** The tag used when using the IMP INTRO or DIS ELIM rules *)
 let annotation_number = ref (-1)
@@ -519,12 +520,16 @@ let rec program_to_ocaml_string
   | VAR (theoremTag) -> "var" ^ (string_of_int theoremTag)
   | PAIR (leftProgram, rightProgram) -> "(" ^ (program_to_ocaml_string leftProgram) ^ ", " ^ (program_to_ocaml_string rightProgram) ^ ")"
   | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ program_to_ocaml_string right ^ "))"
-  (* | INL (otherType, injectedProgram) -> "implement me"
-  | INR (otherType, injectedProgram) -> "implement me" *)
+  | INL (_, injectedProgram) -> "(Left (" ^ (program_to_ocaml_string injectedProgram) ^ "))"
+  | INR (_, injectedProgram) -> "(Right (" ^ (program_to_ocaml_string injectedProgram) ^ "))"
   | FST (program) -> "(fst " ^ (program_to_ocaml_string program) ^ ")"
   | SND (program) -> "(snd " ^ (program_to_ocaml_string program) ^ ")"
   | APP (leftProgram, rightProgram) -> "((" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ "))"
-  (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
+  | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> 
+      "match " ^ (program_to_ocaml_string matchMeProgram) ^ " with " ^
+      "Left (" ^ (program_to_ocaml_string leftTheoremTag) ^ ") -> " ^ (program_to_ocaml_string leftProgram) ^
+      "| Right (" ^ (program_to_ocaml_string rightTheoremTag) ^ ") -> " ^ (program_to_ocaml_string rightProgram) 
+
   | _ -> raise (CustomException "program_to_ocaml_string: Impossible program definition")
 
 (** Converts a theorem to it's corresponding program in OCaml *)
@@ -592,3 +597,12 @@ let i = S 8
 
 (** S 9 *)
 let j = S 9
+
+(** S 10 *)
+let k = S 10
+
+(** S 11 *)
+let l = S 11
+
+(** S 12 *)
+let m = S 12

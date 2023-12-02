@@ -1,11 +1,11 @@
 (** theorem data type *)
 type theorem =
 
-  | CON of theorem * theorem (** Conjunction constructor *)
+  | CON of theorem * theorem (** Conjunction constructor - left, right *)
 
-  | DIS of theorem * theorem (** Disjunction constructor *)
+  | DIS of theorem * theorem (** Disjunction constructor - left, right *)
 
-  | IMP of theorem * theorem * bool (** Implication constructor *)
+  | IMP of theorem * theorem * bool (** Implication constructor - hypothesis, conclusion, hypothesis proven *)
 
   | S of int (** Singleton proposition constructor *)
 
@@ -16,11 +16,11 @@ type rule =
 
   | CON_INTRO (** Conjuction introduction rule *)
 
-  | DIS1_INTRO of theorem (** Left disjunction introduction rule *)
+  | DIS1_INTRO of theorem (** Left disjunction introduction rule - Right side of DIS theorem *)
 
-  | DIS2_INTRO of theorem (** Right disjunction introduction rule *)
+  | DIS2_INTRO of theorem (** Right disjunction introduction rule - Left side of DIS theorem *)
 
-  | IMP_INTRO of theorem (** Implication introduction rule *)
+  | IMP_INTRO of theorem (** Implication introduction rule - hypothesis of IMP theorem *)
 
   | IMP_ELIM  (** Implication elimination rule *)
 
@@ -28,11 +28,11 @@ type rule =
 
   | CON2_ELIM (** Right conjunction elimination rule *)
 
-  | DIS_ELIM of theorem (** Disjunction elimination rule *)
+  | DIS_ELIM of theorem (** Disjunction elimination rule - DIS theorem being broken apart *)
 
-  | ASSUMPTION of theorem (** Theorem is an assumpiton rule *)
+  | ASSUMPTION of theorem (** Assumption rule - assumption *)
 
-  | FAILURE of string (** Signifies proof has failed *)
+  | FAILURE of string (** Signifies proof has failed - message *)
 
 (** proof data type *)
 type proof = 
@@ -71,12 +71,12 @@ module TheoremMap = Map.Make (Theorem);;
 (** Type containing a set of theorems, a map of theorems to prooftops, and a map of theorems to proofs - use to pass data back from gen new assumptions *)
 type setAndMapAndMap = 
 
-  | SET_AND_MAP_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t * proof TheoremMap.t
+  | SET_AND_MAP_AND_MAP of AssumptionSet.t * ProofTopSet.t TheoremMap.t * proof TheoremMap.t (** Assumptions, Map of theorem to ProofTopSet (tracks CON and IMP ELIM), Map of theorem to proof (tracks all INTRO and DIS ELIM)*)
 
 (** Type containing a list of theorems and a map of theorems to proofTop sets. Used in handling con elim rule *)
   type listAndMap = 
 
-  | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t
+  | LIST_AND_MAP of theorem list * ProofTopSet.t TheoremMap.t (** Assumptions, Map of theorem to ProofTopSet *)
 
 (** Custom exception to print out information to terminal *)
 exception CustomException of string
@@ -433,6 +433,7 @@ type program =
 
   | CASE of program * program * program * program * program (** Matches the first program with either the fourth (returns second) or fifth (returns third) program. *)
 
+type ('a, 'b) sum = | Left  of 'a | Right of 'b;;
 
 (** The tag used when using the IMP INTRO or DIS ELIM rules *)
 let annotation_number = ref (-1)
@@ -519,12 +520,16 @@ let rec program_to_ocaml_string
   | VAR (theoremTag) -> "var" ^ (string_of_int theoremTag)
   | PAIR (leftProgram, rightProgram) -> "(" ^ (program_to_ocaml_string leftProgram) ^ ", " ^ (program_to_ocaml_string rightProgram) ^ ")"
   | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ program_to_ocaml_string right ^ "))"
-  (* | INL (otherType, injectedProgram) -> "implement me"
-  | INR (otherType, injectedProgram) -> "implement me" *)
+  | INL (_, injectedProgram) -> "(Left (" ^ (program_to_ocaml_string injectedProgram) ^ "))"
+  | INR (_, injectedProgram) -> "(Right (" ^ (program_to_ocaml_string injectedProgram) ^ "))"
   | FST (program) -> "(fst " ^ (program_to_ocaml_string program) ^ ")"
   | SND (program) -> "(snd " ^ (program_to_ocaml_string program) ^ ")"
   | APP (leftProgram, rightProgram) -> "((" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ "))"
-  (* | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> "Impelment Me" *)
+  | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> 
+      "match " ^ (program_to_ocaml_string matchMeProgram) ^ " with " ^
+      "Left (" ^ (program_to_ocaml_string leftTheoremTag) ^ ") -> " ^ (program_to_ocaml_string leftProgram) ^
+      "| Right (" ^ (program_to_ocaml_string rightTheoremTag) ^ ") -> " ^ (program_to_ocaml_string rightProgram) 
+
   | _ -> raise (CustomException "program_to_ocaml_string: Impossible program definition")
 
 (** Converts a theorem to it's corresponding program in OCaml *)
@@ -592,3 +597,12 @@ let i = S 8
 
 (** S 9 *)
 let j = S 9
+
+(** S 10 *)
+let k = S 10
+
+(** S 11 *)
+let l = S 11
+
+(** S 12 *)
+let m = S 12
