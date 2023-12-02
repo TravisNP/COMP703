@@ -3,6 +3,3 @@
  (name main)
  (libraries Prover)
  )
-(env
-  (dev
-    (flags (:standard -warn-error -A))))

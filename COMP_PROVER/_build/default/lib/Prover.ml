@@ -539,13 +539,16 @@ let theorem_to_ocaml_string
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem
   ?(maxDepthIntro = 100) theorem = 
+  print_newline ();
   let proof = theorem_to_proof ~maxDepthIntro:maxDepthIntro theorem in
   let program = proof_to_program proof in
   let program_ocaml = program_to_ocaml_string program in
+  print_endline "Theorem";
   print_theorem theorem;
+  print_endline "Proof";
   print_proof proof;
-  print_endline (program_ocaml);
-  print_newline ()
+  print_endline (program_ocaml)
+  
 
 (* Ease of use for user --------------------------------------------------------------------------------------------------------------------------------*)
 
