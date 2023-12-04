@@ -34,6 +34,8 @@ type rule =
 
   | FAILURE of string (** Signifies proof has failed - message *)
 
+  | F_ELIM (** Falsehood Elimination rule *)
+
 (** proof data type *)
 type proof = 
 
@@ -84,10 +86,14 @@ exception CustomException of string
 (** Exception for when a rule is used where it is not supposed to *)
 exception IncorrectRuleUsage of string
 
+(** Wrong amount of children used in a rule *)
 exception WrongChildrenAmount of string
 
 (** Exception for when the proof fails *)
 exception ProofFailure of string
+
+(** Custom exception for when F_ELIM rule used *)
+exception InvalidInput of string
 
 (** Converts theorem to string *)
 let rec theorem_to_string
@@ -133,6 +139,7 @@ let rec proof_to_string
       | CON1_ELIM -> "\u{2227}E1" ^ inside
       | CON2_ELIM -> "\u{2227}E2" ^ inside
       | IMP_ELIM -> "\u{2283}E" ^ inside
+      | F_ELIM -> "\u{22A5}E" ^ inside
     )
 
 (** Prints theorem to terminal *)
@@ -281,52 +288,59 @@ and handle_imp_elim
 and prover
 ?(maxDepthIntro = 100) theorem assumptions usedDIS proofTopMap proofMap =
   if maxDepthIntro < 0 then PROOF (FAILURE "Depth limit exceeded in prover", [], false, max_int) else
-  if AssumptionSet.mem theorem assumptions 
+  if AssumptionSet.mem theorem assumptions
     then get_proof maxDepthIntro theorem proofTopMap proofMap
     else
-      (
-        match theorem with
-        | CON (left, right) -> 
+      if AssumptionSet.mem F assumptions
+        then 
           (
-            let leftProof = prover ~maxDepthIntro:(maxDepthIntro - 1) left assumptions usedDIS proofTopMap proofMap in
-            let rightProof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS proofTopMap proofMap in
-            if (is_successful leftProof) && (is_successful rightProof)
-              then PROOF (CON_INTRO, [leftProof; rightProof], true, max (get_depth_proof leftProof) (get_depth_proof rightProof) + 1)
-              else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+            let proof = get_proof (maxDepthIntro - 1) F proofTopMap proofMap in
+            PROOF (F_ELIM, [proof], true, get_depth_proof proof + 1)
           )
-        | IMP (left, right, _) ->
-            (
-              (* print_theorem left; *)
-              let mapWithLeft = addAssumptionToMap left proofTopMap in
-              match gen_new_assumptions maxDepthIntro assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptions, newMap, newProofMap) ->
-              let proof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS newMap newProofMap in
-              if is_successful proof
-                then PROOF (IMP_INTRO (left), [proof], true, get_depth_proof proof + 1)
-                else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
-            )
-        | DIS (left, right) ->
+        else
           (
-            let leftProof = prover ~maxDepthIntro:(maxDepthIntro - 1) left assumptions usedDIS proofTopMap proofMap in
-            let rightProof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS proofTopMap proofMap in
-            if (is_successful leftProof) && (is_successful rightProof)
-              then (
-                if get_depth_proof leftProof < get_depth_proof rightProof 
-                  then PROOF (DIS1_INTRO (right), [leftProof], true, get_depth_proof leftProof + 1)
-                  else PROOF (DIS2_INTRO (left), [rightProof], true, get_depth_proof rightProof + 1)
+            match theorem with
+            | CON (left, right) -> 
+              (
+                let leftProof = prover ~maxDepthIntro:(maxDepthIntro - 1) left assumptions usedDIS proofTopMap proofMap in
+                let rightProof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS proofTopMap proofMap in
+                if (is_successful leftProof) && (is_successful rightProof)
+                  then PROOF (CON_INTRO, [leftProof; rightProof], true, max (get_depth_proof leftProof) (get_depth_proof rightProof) + 1)
+                  else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
               )
-              else (
-                if is_successful leftProof 
-                  then PROOF (DIS1_INTRO (right), [leftProof], true, get_depth_proof leftProof + 1)
+            | IMP (left, right, _) ->
+                (
+                  (* print_theorem left; *)
+                  let mapWithLeft = addAssumptionToMap left proofTopMap in
+                  match gen_new_assumptions maxDepthIntro assumptions [left] usedDIS mapWithLeft proofMap with SET_AND_MAP_AND_MAP(assumptions, newMap, newProofMap) ->
+                  let proof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS newMap newProofMap in
+                  if is_successful proof
+                    then PROOF (IMP_INTRO (left), [proof], true, get_depth_proof proof + 1)
+                    else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+                )
+            | DIS (left, right) ->
+              (
+                let leftProof = prover ~maxDepthIntro:(maxDepthIntro - 1) left assumptions usedDIS proofTopMap proofMap in
+                let rightProof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS proofTopMap proofMap in
+                if (is_successful leftProof) && (is_successful rightProof)
+                  then (
+                    if get_depth_proof leftProof < get_depth_proof rightProof 
+                      then PROOF (DIS1_INTRO (right), [leftProof], true, get_depth_proof leftProof + 1)
+                      else PROOF (DIS2_INTRO (left), [rightProof], true, get_depth_proof rightProof + 1)
+                  )
                   else (
-                    if is_successful rightProof
-                      then PROOF (DIS2_INTRO (left), [rightProof], true, get_depth_proof rightProof + 1)
-                      else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+                    if is_successful leftProof 
+                      then PROOF (DIS1_INTRO (right), [leftProof], true, get_depth_proof leftProof + 1)
+                      else (
+                        if is_successful rightProof
+                          then PROOF (DIS2_INTRO (left), [rightProof], true, get_depth_proof rightProof + 1)
+                          else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+                      )
                   )
               )
+            | S _ -> handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+            | F -> handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
           )
-        | S _ -> handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
-        | F -> handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
-      )
 
 (** Handles the DIS Elimination rule. If a theorem in the assumptions has DIS as the outer operator and has not been broken apart before,
     generate the new assumption sets and try to prove the theorem again using the DIS ELIM rule*)
@@ -433,6 +447,8 @@ type program =
 
   | CASE of program * program * program * program * program (** Matches the first program with either the fourth (returns second) or fifth (returns third) program. *)
 
+  | ABT (** Aborts the program *)
+
 type ('a, 'b) sum = | Left  of 'a | Right of 'b;;
 
 (** The tag used when using the IMP INTRO or DIS ELIM rules *)
@@ -476,6 +492,7 @@ let rec program_extractor
         )
       | _ -> raise (CustomException "program_extractor: Non dis theorem used in DIS_ELIM rule")
     )
+  | PROOF (F_ELIM, _, _, _) -> ABT
   | PROOF (ASSUMPTION _, _, _, _) -> raise (WrongChildrenAmount "program_extractor: Assumption rule does not have 0 children")
   | PROOF (CON_INTRO, _, _, _) -> raise (WrongChildrenAmount "program_extractor: CON_INTRO rule does not have 2 children")
   | PROOF (IMP_INTRO (_), _, _, _) -> raise (WrongChildrenAmount "program_extractor: IMP_INTRO rule does not have 1 child")
@@ -519,17 +536,17 @@ let rec program_to_ocaml_string
   match program with
   | VAR (theoremTag) -> "var" ^ (string_of_int theoremTag)
   | PAIR (leftProgram, rightProgram) -> "(" ^ (program_to_ocaml_string leftProgram) ^ ", " ^ (program_to_ocaml_string rightProgram) ^ ")"
-  | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> " ^ "(" ^ program_to_ocaml_string right ^ "))"
+  | ABSTR (VAR theoremTag, right) -> "(fun " ^ "var" ^ (string_of_int theoremTag) ^ " -> (" ^ program_to_ocaml_string right ^ "))"
   | INL (_, injectedProgram) -> "(Left (" ^ (program_to_ocaml_string injectedProgram) ^ "))"
   | INR (_, injectedProgram) -> "(Right (" ^ (program_to_ocaml_string injectedProgram) ^ "))"
-  | FST (program) -> "(fst " ^ (program_to_ocaml_string program) ^ ")"
-  | SND (program) -> "(snd " ^ (program_to_ocaml_string program) ^ ")"
+  | FST (program) -> "(fst (" ^ (program_to_ocaml_string program) ^ "))"
+  | SND (program) -> "(snd (" ^ (program_to_ocaml_string program) ^ "))"
   | APP (leftProgram, rightProgram) -> "((" ^ (program_to_ocaml_string leftProgram) ^ ") (" ^ (program_to_ocaml_string rightProgram) ^ "))"
   | CASE (matchMeProgram, leftProgram, rightProgram, leftTheoremTag, rightTheoremTag) -> 
-      "match " ^ (program_to_ocaml_string matchMeProgram) ^ " with " ^
-      "Left (" ^ (program_to_ocaml_string leftTheoremTag) ^ ") -> " ^ (program_to_ocaml_string leftProgram) ^
-      "| Right (" ^ (program_to_ocaml_string rightTheoremTag) ^ ") -> " ^ (program_to_ocaml_string rightProgram) 
-
+      "(match " ^ (program_to_ocaml_string matchMeProgram) ^ " with " ^
+      "Left (" ^ (program_to_ocaml_string leftTheoremTag) ^ ") -> (" ^ (program_to_ocaml_string leftProgram) ^ ")" ^
+      "| Right (" ^ (program_to_ocaml_string rightTheoremTag) ^ ") -> (" ^ (program_to_ocaml_string rightProgram) ^ "))"
+  | ABT -> "(raise (InvalidInput \" You have given this function invalid input\"))"
   | _ -> raise (CustomException "program_to_ocaml_string: Impossible program definition")
 
 (** Converts a theorem to it's corresponding program in OCaml *)

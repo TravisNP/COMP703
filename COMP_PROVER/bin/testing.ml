@@ -48,3 +48,12 @@ let _ = ((1,2),(3,4));;
 let diagonal_of_1x1_or_2x2_or_3x3_matrix = (a @@ ((b**c)**(d**e)) @@ ((f**g**h)**(i**j**k)**(l**m**n))) && (a @@ (b**e) @@ (f**j**m));;
 test_theorem diagonal_of_1x1_or_2x2_or_3x3_matrix;;
 time_prove diagonal_of_1x1_or_2x2_or_3x3_matrix;;
+
+(* Returns a pair if the input represents two single inputs. Returns a pair of pairs if the input represents two pairs
+   Example input: 
+   (Left 3) (Left (4.0, "junk"))
+   myFunc (Right ("hi", 0)) (Right (("world", 1.0), "junk"));; 
+   To reach the abort, mix Left and Right - (Left 4) (Right (("world", 10), "junk"));;*)
+let pairValuesTheorem = (a @@ (b**c)) && (((d**(!!(b**c))) @@ ((e**f)**(!!a))) && ((a**d) @@ ((b**e)**(c**f))));;
+test_theorem pairValuesTheorem;;
+time_prove pairValuesTheorem;;
