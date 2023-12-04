@@ -2,14 +2,18 @@ open Prover;;
 
 (** Prints out the time taken to run a function on an input *)
 let time 
-  func input =
+  ?(unit="ms") func input =
   let startTime = Sys.time() in
   let _ = func input in
-  Printf.printf "Execution time: %fms\n" ((Sys.time() -. startTime) *. 1000.)
+  let timeTaken = (Sys.time() -. startTime) in
+  Printf.printf "Prover execution time: %fms\n" (
+  if unit = "ms" then (timeTaken *. 1000.)
+  else if unit = "s" then timeTaken
+  else raise (CustomException "Unit not implemented"))
 
 (** Prints out the time taken to prove a theorem *)
-let time_prove = 
-  time theorem_to_proof;;
+let time_prove 
+  ?(unit="ms") = time ~unit:unit theorem_to_proof;;
 
 (* Swap theorem example on page 9 of Constructive Logic*)
 let swapTheorem = a ** b && b ** a;;
@@ -61,7 +65,9 @@ time_prove pairValuesTheorem;;
 (* Raises an error upon any input *)
 let falsehoodExampleTheorem = F && a;;
 test_theorem falsehoodExampleTheorem;;
+time_prove falsehoodExampleTheorem;;
 
 (* Returns the unit element upon any input *)
 let truthExampleTheorem = a && T;;
 test_theorem truthExampleTheorem;;
+time_prove truthExampleTheorem;;

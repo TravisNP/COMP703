@@ -561,6 +561,32 @@ and get_theoremTag
             theoremTag
           )
 
+(** Converts an abstract program to a string *)
+let rec program_to_string
+  program depth = 
+  let spacingString = (String.make ((depth + 1) * 2) ' ') in
+  match program with
+  | VAR theoremTag -> "var" ^ string_of_int theoremTag
+  | PAIR (left, right) -> "Pair (\n" ^ spacingString ^ (program_to_string left (depth + 1)) ^ ",\n" ^ 
+      spacingString ^ (program_to_string right (depth + 1)) ^ "\n" ^ (String.make (depth * 2) ' ')  ^ ")"
+  | ABSTR (VAR theoremTag, right) -> "\u{03BB}" ^ "var" ^ (string_of_int theoremTag) ^ ".\n" ^ spacingString ^ (program_to_string right (depth + 1))
+  | INL (otherType, injectedProgram) -> "inl type " ^ (theorem_to_string otherType) ^ " to " ^ (program_to_string injectedProgram (depth + 1))
+  | INR (otherType, injectedProgram) -> "inr type " ^ (theorem_to_string otherType) ^ " to " ^ (program_to_string injectedProgram (depth + 1))
+  | FST (program) -> "fst (\n" ^ spacingString ^ (program_to_string program (depth + 1)) ^ "\n"^ (String.make (depth * 2) ' ') ^ ")"
+  | SND (program) -> "snd (\n" ^ spacingString ^ (program_to_string program (depth + 1)) ^ "\n"^ (String.make (depth * 2) ' ') ^ ")"
+  | APP (left, right) -> "Apply (\n" ^ spacingString ^ "(" ^ (program_to_string left (depth + 1)) ^ ")\n" ^ 
+      spacingString ^ "(" ^ (program_to_string right (depth + 1)) ^ ")\n" ^ (String.make (depth * 2) ' ') ^ ")"
+  | CASE (matchMe, left, right, leftTag, rightTag) -> "case\n" ^ spacingString ^ (program_to_string matchMe (depth + 1)) ^ " of\n" ^ spacingString ^ 
+          "inl (" ^ (program_to_string leftTag depth) ^ ") -> (" ^ (program_to_string left (depth)) ^ ")\n" ^ spacingString ^ 
+          "inr (" ^ (program_to_string rightTag depth) ^ ") -> (" ^ (program_to_string right depth) ^ ")"
+  | ABT -> "(abort program)"
+  | UNT -> "(unit element)"
+  | _ -> raise (CustomException "program_to_string: Impossible program definition")
+
+(** Prints an abstract program to the terminal *)
+let print_program
+  program = print_endline (program_to_string program 0)
+
 (** Calls the program extractor with an empty theorem-to-tag map *)
 let proof_to_program
   proof = 
@@ -601,7 +627,7 @@ let theorem_to_ocaml_string
 (** First, prints the theorem to terminal. Then, tries to prove the theorem. Finaly, prints the proof (even upon failure) to terminal.*)
 let test_theorem
   ?(maxDepthIntro = 100) theorem = 
-  print_newline ();
+  print_endline "--------------------------------------------------------";
   let proof = theorem_to_proof ~maxDepthIntro:maxDepthIntro theorem in
   let program = proof_to_program proof in
   let program_ocaml = program_to_ocaml_string program in
@@ -609,6 +635,9 @@ let test_theorem
   print_theorem theorem;
   print_endline "Proof";
   print_proof proof;
+  print_endline "Program";
+  print_program program;
+  print_endline "OCaml code";
   print_endline (program_ocaml)
   
 
