@@ -11,6 +11,8 @@ type theorem =
 
   | F (** Falsehood constructor *)
 
+  | T (** Truth constructor *)
+
 (** rule data type *)
 type rule = 
 
@@ -35,6 +37,8 @@ type rule =
   | FAILURE of string (** Signifies proof has failed - message *)
 
   | F_ELIM (** Falsehood Elimination rule *)
+
+  | T_INTRO (** Truth Introduction rule*)
 
 (** proof data type *)
 type proof = 
@@ -108,6 +112,7 @@ let rec theorem_to_string
     )
   | S value -> string_of_int value
   | F -> "\u{22A5}"
+  | T -> "\u{22a4}"
 
 (** Adds parenthesis around all theorems except singletons or falsehood *)
 and parenthesize
@@ -115,19 +120,20 @@ and parenthesize
   match theorem with
   | S value -> string_of_int value
   | F -> "\u{22A5}"
+  | T -> "\u{22a4}"
   | _ -> "(" ^ theorem_to_string theorem ^ ")"
 
-(** Converts proof to string *)
-let rec proof_to_string 
+(** Converts proof to a string which takes up only one line *)
+let rec proof_to_inline_string 
   proof = match proof with 
   | PROOF(rule, children, _, _) ->
     (
       let inside = match children with
-        | theorem :: [] -> "(" ^ proof_to_string theorem ^ ")"
-        | left :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string right ^ ")"
-        | left :: middle :: [right] -> "(" ^ proof_to_string left ^ " " ^ proof_to_string middle ^ " " ^ proof_to_string right ^ ")"
+        | child :: [] -> "(" ^ proof_to_inline_string child ^ ")"
+        | left :: [right] -> "(" ^ proof_to_inline_string left ^ " " ^ proof_to_inline_string right ^ ")"
+        | left :: middle :: [right] -> "(" ^ proof_to_inline_string left ^ " " ^ proof_to_inline_string middle ^ " " ^ proof_to_inline_string right ^ ")"
         | [] -> ""
-        | _ -> raise (WrongChildrenAmount "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
+        | _ -> raise (WrongChildrenAmount "proof_to_inline_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
       match rule with
       | IMP_INTRO (_) -> "\u{2283}I" ^ inside
       | CON_INTRO -> "\u{2227}I" ^ inside
@@ -140,6 +146,35 @@ let rec proof_to_string
       | CON2_ELIM -> "\u{2227}E2" ^ inside
       | IMP_ELIM -> "\u{2283}E" ^ inside
       | F_ELIM -> "\u{22A5}E" ^ inside
+      | T_INTRO -> "\u{22a4}I"
+    )
+
+(** Converts proof to a string which takes up multiple lines *)
+let rec proof_to_string
+  proof depth = match proof with
+  | PROOF (rule, children, _, _) ->
+    (
+      let spacingString = (String.make ((depth + 1) * 2) ' ') in
+      let make_line line = match rule with ASSUMPTION theorem -> parenthesize theorem | _ -> "\n" ^ spacingString ^ proof_to_string line (depth + 1) in
+      let inside = match children with
+        | [] -> "\n"
+        | [child] -> make_line child
+        | [left; right] -> make_line left ^ make_line right
+        | [left;middle;right] -> make_line left ^ make_line middle ^ make_line right
+        | _ -> raise (WrongChildrenAmount "proof_to_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
+      match rule with 
+      | IMP_INTRO (_) -> "\u{2283}I" ^ inside
+      | CON_INTRO -> "\u{2227}I" ^ inside
+      | DIS1_INTRO (_) -> "\u{2228}I1" ^ inside
+      | DIS2_INTRO (_) -> "\u{2228}I2" ^ inside
+      | ASSUMPTION theorem -> parenthesize theorem
+      | FAILURE (message) -> "FAILURE: " ^ message
+      | DIS_ELIM (_) -> "\u{2228}E" ^ inside
+      | CON1_ELIM -> "\u{2227}E1" ^ inside
+      | CON2_ELIM -> "\u{2227}E2" ^ inside
+      | IMP_ELIM -> "\u{2283}E" ^ inside
+      | F_ELIM -> "\u{22A5}E" ^ inside
+      | T_INTRO -> "\u{22a4}I\n"
     )
 
 (** Prints theorem to terminal *)
@@ -148,7 +183,7 @@ let print_theorem
 
 (** Prints proof to terminal *)
 let print_proof
-  proof = print_endline (proof_to_string proof)
+  proof = print_endline (proof_to_string proof 0)
 
 (** Print a list of theorems to terminal, one on each line *)
 let print_assumptions
@@ -340,6 +375,7 @@ and prover
               )
             | S _ -> handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
             | F -> handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+            | T -> PROOF (T_INTRO, [], true, 0)
           )
 
 (** Handles the DIS Elimination rule. If a theorem in the assumptions has DIS as the outer operator and has not been broken apart before,
@@ -449,6 +485,8 @@ type program =
 
   | ABT (** Aborts the program *)
 
+  | UNT (** Unit element *)
+
 type ('a, 'b) sum = | Left  of 'a | Right of 'b;;
 
 (** The tag used when using the IMP INTRO or DIS ELIM rules *)
@@ -493,6 +531,7 @@ let rec program_extractor
       | _ -> raise (CustomException "program_extractor: Non dis theorem used in DIS_ELIM rule")
     )
   | PROOF (F_ELIM, _, _, _) -> ABT
+  | PROOF (T_INTRO, [], _, _) -> UNT
   | PROOF (ASSUMPTION _, _, _, _) -> raise (WrongChildrenAmount "program_extractor: Assumption rule does not have 0 children")
   | PROOF (CON_INTRO, _, _, _) -> raise (WrongChildrenAmount "program_extractor: CON_INTRO rule does not have 2 children")
   | PROOF (IMP_INTRO (_), _, _, _) -> raise (WrongChildrenAmount "program_extractor: IMP_INTRO rule does not have 1 child")
@@ -502,6 +541,7 @@ let rec program_extractor
   | PROOF (CON2_ELIM, _, _, _) -> raise(WrongChildrenAmount "program_extractor: CON2_ELIM rule does not have 1 child")
   | PROOF (IMP_ELIM, _, _, _) -> raise(WrongChildrenAmount "program_extractor: IMP_ELIM rule does not have 2 children")
   | PROOF (DIS_ELIM (_), _, _, _) -> raise(WrongChildrenAmount "program_extractor: DIS_ELIM rule does not have 3 children")
+  | PROOF (T_INTRO, _, _, _) -> raise(WrongChildrenAmount "program_extractor: T_INTRO rule does not have 0 children")
   | PROOF (FAILURE (message), _, _, _) -> raise(ProofFailure ("program_extractor: FAILURE rule used - " ^ message))
 
 (** Gets the next theoremTag if one does not exist for the IMP INTRO and DIS ELIM rules. If one does exist, returns it *)
@@ -546,7 +586,8 @@ let rec program_to_ocaml_string
       "(match " ^ (program_to_ocaml_string matchMeProgram) ^ " with " ^
       "Left (" ^ (program_to_ocaml_string leftTheoremTag) ^ ") -> (" ^ (program_to_ocaml_string leftProgram) ^ ")" ^
       "| Right (" ^ (program_to_ocaml_string rightTheoremTag) ^ ") -> (" ^ (program_to_ocaml_string rightProgram) ^ "))"
-  | ABT -> "(raise (InvalidInput \" You have given this function invalid input\"))"
+  | ABT -> "(raise (InvalidInput \"You have given this function invalid input\"))"
+  | UNT -> "()"
   | _ -> raise (CustomException "program_to_ocaml_string: Impossible program definition")
 
 (** Converts a theorem to it's corresponding program in OCaml *)

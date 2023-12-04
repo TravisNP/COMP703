@@ -22,9 +22,9 @@ test_theorem functionSplitTheorem;;
 time_prove functionSplitTheorem;;
 
 (* Example of theorem on page 13 of Constructive Logic *)
-let disTheorem = (S 0 @@ S 1) && (S 1 @@ S 0);;
-test_theorem disTheorem;;
-time_prove disTheorem;;
+let swapSumType = (a @@ b) && (b @@ a);;
+test_theorem swapSumType;;
+time_prove swapSumType;;
 
 (* Example of theorem on page 33 of Constructive Logic *)
 let functionCompositionTheorem = ((a && b) ** (b && c)) && (a && c);;
@@ -57,3 +57,11 @@ time_prove diagonal_of_1x1_or_2x2_or_3x3_matrix;;
 let pairValuesTheorem = (a @@ (b**c)) && (((d**(!!(b**c))) @@ ((e**f)**(!!a))) && ((a**d) @@ ((b**e)**(c**f))));;
 test_theorem pairValuesTheorem;;
 time_prove pairValuesTheorem;;
+
+(* Raises an error upon any input *)
+let falsehoodExampleTheorem = F && a;;
+test_theorem falsehoodExampleTheorem;;
+
+(* Returns the unit element upon any input *)
+let truthExampleTheorem = a && T;;
+test_theorem truthExampleTheorem;;
