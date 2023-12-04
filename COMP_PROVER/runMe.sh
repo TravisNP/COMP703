@@ -1,2 +1,2 @@
 dune build
-dune exec ./bin/main.exe
+dune exec ./bin/testing.exe

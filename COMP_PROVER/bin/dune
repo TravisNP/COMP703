@@ -1,5 +1,5 @@
 (executable
  (public_name COMP_PROVER)
- (name main)
+ (name testing)
  (libraries Prover)
  )
