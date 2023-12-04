@@ -124,16 +124,16 @@ and parenthesize
   | _ -> "(" ^ theorem_to_string theorem ^ ")"
 
 (** Converts proof to a string which takes up only one line *)
-let rec proof_to_inline_string 
+let rec proof_to_oneline_string 
   proof = match proof with 
   | PROOF(rule, children, _, _) ->
     (
       let inside = match children with
-        | child :: [] -> "(" ^ proof_to_inline_string child ^ ")"
-        | left :: [right] -> "(" ^ proof_to_inline_string left ^ " " ^ proof_to_inline_string right ^ ")"
-        | left :: middle :: [right] -> "(" ^ proof_to_inline_string left ^ " " ^ proof_to_inline_string middle ^ " " ^ proof_to_inline_string right ^ ")"
+        | child :: [] -> "(" ^ proof_to_oneline_string child ^ ")"
+        | left :: [right] -> "(" ^ proof_to_oneline_string left ^ " " ^ proof_to_oneline_string right ^ ")"
+        | left :: middle :: [right] -> "(" ^ proof_to_oneline_string left ^ " " ^ proof_to_oneline_string middle ^ " " ^ proof_to_oneline_string right ^ ")"
         | [] -> ""
-        | _ -> raise (WrongChildrenAmount "proof_to_inline_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
+        | _ -> raise (WrongChildrenAmount "proof_to_oneline_string: More than 3 children. Only zero, one, two, or 3 children possible with this implementation") in
       match rule with
       | IMP_INTRO (_) -> "\u{2283}I" ^ inside
       | CON_INTRO -> "\u{2227}I" ^ inside
@@ -174,7 +174,7 @@ let rec proof_to_string
       | CON2_ELIM -> "\u{2227}E2" ^ inside
       | IMP_ELIM -> "\u{2283}E" ^ inside
       | F_ELIM -> "\u{22A5}E" ^ inside
-      | T_INTRO -> "\u{22a4}I\n"
+      | T_INTRO -> "\u{22a4}I"
     )
 
 (** Prints theorem to terminal *)
@@ -184,6 +184,10 @@ let print_theorem
 (** Prints proof to terminal *)
 let print_proof
   proof = print_endline (proof_to_string proof 0)
+
+(** Prints oneline proof to terminal *)
+let print_proof_oneline
+  proof = print_endline (proof_to_oneline_string proof)
 
 (** Print a list of theorems to terminal, one on each line *)
 let print_assumptions
