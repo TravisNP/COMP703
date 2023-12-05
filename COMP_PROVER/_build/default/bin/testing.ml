@@ -1,6 +1,6 @@
 open Prover;;
 
-(** Prints out the time taken to run a function on an input *)
+(** Prints out the time taken to run a function on an input in either milliseconds (default) or seconds *)
 let time 
   ?(unit="ms") func input =
   let startTime = Sys.time() in
@@ -11,7 +11,7 @@ let time
   else if unit = "s" then timeTaken
   else raise (CustomException "Unit not implemented"))
 
-(** Prints out the time taken to prove a theorem *)
+(** Prints out the time taken to prove a theorem in either milliseconds (default) or seconds *)
 let time_prove 
   ?(unit="ms") = time ~unit:unit theorem_to_proof;;
 

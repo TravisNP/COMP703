@@ -1,0 +1,526 @@
+--------------------------------------------------------
+Theorem
+(0 ∧ 1) ⊃ (1 ∧ 0)
+Proof
+⊃I
+  ∧I
+    ∧E2
+      (0 ∧ 1)
+    ∧E1
+      (0 ∧ 1)
+Program
+λvar0.
+  Pair (
+    snd (
+      var0
+    ),
+    fst (
+      var0
+    )
+  )
+OCaml code
+(fun var0 -> (((snd (var0)), (fst (var0)))))
+Prover execution time: 0.002000ms
+--------------------------------------------------------
+Theorem
+(0 ⊃ (1 ∧ 2)) ⊃ ((0 ⊃ 1) ∧ (0 ⊃ 2))
+Proof
+⊃I
+  ∧I
+    ⊃I
+      ∧E1
+        ⊃E
+          (0 ⊃ (1 ∧ 2))
+          0
+    ⊃I
+      ∧E2
+        ⊃E
+          (0 ⊃ (1 ∧ 2))
+          0
+Program
+λvar0.
+  Pair (
+    λvar2.
+      fst (
+        Apply (
+          (var0)
+          (var2)
+        )
+      ),
+    λvar1.
+      snd (
+        Apply (
+          (var0)
+          (var1)
+        )
+      )
+  )
+OCaml code
+(fun var0 -> (((fun var2 -> ((fst (((var0) (var2)))))), (fun var1 -> ((snd (((var0) (var1)))))))))
+Prover execution time: 0.006000ms
+--------------------------------------------------------
+Theorem
+(0 ∨ 1) ⊃ (1 ∨ 0)
+Proof
+⊃I
+  ∨E
+    (0 ∨ 1)
+    ∨I2
+      0
+    ∨I1
+      1
+Program
+λvar0.
+  case
+    var0 of
+    inl (var1) -> (inr type 1 to var1)
+    inr (var2) -> (inl type 0 to var2)
+OCaml code
+(fun var0 -> ((match var0 with Left (var1) -> ((Right (var1)))| Right (var2) -> ((Left (var2))))))
+Prover execution time: 0.002000ms
+--------------------------------------------------------
+Theorem
+((0 ⊃ 1) ∧ (1 ⊃ 2)) ⊃ (0 ⊃ 2)
+Proof
+⊃I
+  ⊃I
+    ⊃E
+      ∧E2
+        ((0 ⊃ 1) ∧ (1 ⊃ 2))
+      ⊃E
+        ∧E1
+          ((0 ⊃ 1) ∧ (1 ⊃ 2))
+        0
+Program
+λvar0.
+  λvar1.
+    Apply (
+      (snd (
+        var0
+      ))
+      (Apply (
+        (fst (
+          var0
+        ))
+        (var1)
+      ))
+    )
+OCaml code
+(fun var0 -> ((fun var1 -> ((((snd (var0))) ((((fst (var0))) (var1))))))))
+Prover execution time: 0.006000ms
+--------------------------------------------------------
+Theorem
+((0 ∧ 0) ⊃ 1) ⊃ (0 ⊃ 1)
+Proof
+⊃I
+  ⊃I
+    ⊃E
+      ((0 ∧ 0) ⊃ 1)
+      ∧I
+        0
+        0
+Program
+λvar0.
+  λvar1.
+    Apply (
+      (var0)
+      (Pair (
+        var1,
+        var1
+      ))
+    )
+OCaml code
+(fun var0 -> ((fun var1 -> (((var0) ((var1, var1)))))))
+Prover execution time: 0.004000ms
+--------------------------------------------------------
+Theorem
+(((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8)))) ∨ ((9 ∧ 10) ∧ (11 ∧ 12))) ⊃ (((0 ∧ (3 ∧ 6)) ∧ ((1 ∧ (4 ∧ 7)) ∧ (2 ∧ (5 ∧ 8)))) ∨ ((9 ∧ 11) ∧ (10 ∧ 12)))
+Proof
+⊃I
+  ∨E
+    (((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8)))) ∨ ((9 ∧ 10) ∧ (11 ∧ 12)))
+    ∨I1
+      ∧I
+        ∧I
+          ∧E1
+            ∧E1
+              ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+          ∧I
+            ∧E1
+              ∧E1
+                ∧E2
+                  ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+            ∧E1
+              ∧E2
+                ∧E2
+                  ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+        ∧I
+          ∧I
+            ∧E1
+              ∧E2
+                ∧E1
+                  ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+            ∧I
+              ∧E1
+                ∧E2
+                  ∧E1
+                    ∧E2
+                      ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+              ∧E1
+                ∧E2
+                  ∧E2
+                    ∧E2
+                      ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+          ∧I
+            ∧E2
+              ∧E2
+                ∧E1
+                  ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+            ∧I
+              ∧E2
+                ∧E2
+                  ∧E1
+                    ∧E2
+                      ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+              ∧E2
+                ∧E2
+                  ∧E2
+                    ∧E2
+                      ((0 ∧ (1 ∧ 2)) ∧ ((3 ∧ (4 ∧ 5)) ∧ (6 ∧ (7 ∧ 8))))
+    ∨I2
+      ∧I
+        ∧I
+          ∧E1
+            ∧E1
+              ((9 ∧ 10) ∧ (11 ∧ 12))
+          ∧E1
+            ∧E2
+              ((9 ∧ 10) ∧ (11 ∧ 12))
+        ∧I
+          ∧E2
+            ∧E1
+              ((9 ∧ 10) ∧ (11 ∧ 12))
+          ∧E2
+            ∧E2
+              ((9 ∧ 10) ∧ (11 ∧ 12))
+Program
+λvar0.
+  case
+    var0 of
+    inl (var1) -> (inl type (9 ∧ 11) ∧ (10 ∧ 12) to Pair (
+      Pair (
+        fst (
+          fst (
+            var1
+          )
+        ),
+        Pair (
+          fst (
+            fst (
+              snd (
+                var1
+              )
+            )
+          ),
+          fst (
+            snd (
+              snd (
+                var1
+              )
+            )
+          )
+        )
+      ),
+      Pair (
+        Pair (
+          fst (
+            snd (
+              fst (
+                var1
+              )
+            )
+          ),
+          Pair (
+            fst (
+              snd (
+                fst (
+                  snd (
+                    var1
+                  )
+                )
+              )
+            ),
+            fst (
+              snd (
+                snd (
+                  snd (
+                    var1
+                  )
+                )
+              )
+            )
+          )
+        ),
+        Pair (
+          snd (
+            snd (
+              fst (
+                var1
+              )
+            )
+          ),
+          Pair (
+            snd (
+              snd (
+                fst (
+                  snd (
+                    var1
+                  )
+                )
+              )
+            ),
+            snd (
+              snd (
+                snd (
+                  snd (
+                    var1
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    ))
+    inr (var2) -> (inr type (0 ∧ (3 ∧ 6)) ∧ ((1 ∧ (4 ∧ 7)) ∧ (2 ∧ (5 ∧ 8))) to Pair (
+      Pair (
+        fst (
+          fst (
+            var2
+          )
+        ),
+        fst (
+          snd (
+            var2
+          )
+        )
+      ),
+      Pair (
+        snd (
+          fst (
+            var2
+          )
+        ),
+        snd (
+          snd (
+            var2
+          )
+        )
+      )
+    ))
+OCaml code
+(fun var0 -> ((match var0 with Left (var1) -> ((Left ((((fst ((fst (var1)))), ((fst ((fst ((snd (var1)))))), (fst ((snd ((snd (var1)))))))), (((fst ((snd ((fst (var1)))))), ((fst ((snd ((fst ((snd (var1)))))))), (fst ((snd ((snd ((snd (var1)))))))))), ((snd ((snd ((fst (var1)))))), ((snd ((snd ((fst ((snd (var1)))))))), (snd ((snd ((snd ((snd (var1)))))))))))))))| Right (var2) -> ((Right ((((fst ((fst (var2)))), (fst ((snd (var2))))), ((snd ((fst (var2)))), (snd ((snd (var2))))))))))))
+Prover execution time: 0.242000ms
+--------------------------------------------------------
+Theorem
+(0 ∨ (((1 ∧ 2) ∧ (3 ∧ 4)) ∨ ((5 ∧ (6 ∧ 7)) ∧ ((8 ∧ (9 ∧ 10)) ∧ (11 ∧ (12 ∧ 13)))))) ⊃ (0 ∨ ((1 ∧ 4) ∨ (5 ∧ (9 ∧ 12))))
+Proof
+⊃I
+  ∨E
+    (0 ∨ (((1 ∧ 2) ∧ (3 ∧ 4)) ∨ ((5 ∧ (6 ∧ 7)) ∧ ((8 ∧ (9 ∧ 10)) ∧ (11 ∧ (12 ∧ 13))))))
+    ∨I1
+      0
+    ∨I2
+      ∨E
+        (((1 ∧ 2) ∧ (3 ∧ 4)) ∨ ((5 ∧ (6 ∧ 7)) ∧ ((8 ∧ (9 ∧ 10)) ∧ (11 ∧ (12 ∧ 13)))))
+        ∨I1
+          ∧I
+            ∧E1
+              ∧E1
+                ((1 ∧ 2) ∧ (3 ∧ 4))
+            ∧E2
+              ∧E2
+                ((1 ∧ 2) ∧ (3 ∧ 4))
+        ∨I2
+          ∧I
+            ∧E1
+              ∧E1
+                ((5 ∧ (6 ∧ 7)) ∧ ((8 ∧ (9 ∧ 10)) ∧ (11 ∧ (12 ∧ 13))))
+            ∧I
+              ∧E1
+                ∧E2
+                  ∧E1
+                    ∧E2
+                      ((5 ∧ (6 ∧ 7)) ∧ ((8 ∧ (9 ∧ 10)) ∧ (11 ∧ (12 ∧ 13))))
+              ∧E1
+                ∧E2
+                  ∧E2
+                    ∧E2
+                      ((5 ∧ (6 ∧ 7)) ∧ ((8 ∧ (9 ∧ 10)) ∧ (11 ∧ (12 ∧ 13))))
+Program
+λvar0.
+  case
+    var0 of
+    inl (var1) -> (inl type (1 ∧ 4) ∨ (5 ∧ (9 ∧ 12)) to var1)
+    inr (var2) -> (inr type 0 to case
+      var2 of
+      inl (var3) -> (inl type 5 ∧ (9 ∧ 12) to Pair (
+        fst (
+          fst (
+            var3
+          )
+        ),
+        snd (
+          snd (
+            var3
+          )
+        )
+      ))
+      inr (var4) -> (inr type 1 ∧ 4 to Pair (
+        fst (
+          fst (
+            var4
+          )
+        ),
+        Pair (
+          fst (
+            snd (
+              fst (
+                snd (
+                  var4
+                )
+              )
+            )
+          ),
+          fst (
+            snd (
+              snd (
+                snd (
+                  var4
+                )
+              )
+            )
+          )
+        )
+      )))
+OCaml code
+(fun var0 -> ((match var0 with Left (var1) -> ((Left (var1)))| Right (var2) -> ((Right ((match var2 with Left (var3) -> ((Left (((fst ((fst (var3)))), (snd ((snd (var3))))))))| Right (var4) -> ((Right (((fst ((fst (var4)))), ((fst ((snd ((fst ((snd (var4)))))))), (fst ((snd ((snd ((snd (var4))))))))))))))))))))
+Prover execution time: 0.385000ms
+--------------------------------------------------------
+Theorem
+(0 ∨ (1 ∧ 2)) ⊃ (((3 ∧ (¬(1 ∧ 2))) ∨ ((4 ∧ 5) ∧ (¬0))) ⊃ ((0 ∧ 3) ∨ ((1 ∧ 4) ∧ (2 ∧ 5))))
+Proof
+⊃I
+  ⊃I
+    ∨E
+      ((3 ∧ (¬(1 ∧ 2))) ∨ ((4 ∧ 5) ∧ (¬0)))
+      ∨I1
+        ∧I
+          ∨E
+            (0 ∨ (1 ∧ 2))
+            0
+            ⊥E
+              ⊃E
+                ∧E2
+                  (3 ∧ (¬(1 ∧ 2)))
+                (1 ∧ 2)
+          ∧E1
+            (3 ∧ (¬(1 ∧ 2)))
+      ∨I2
+        ∧I
+          ∧I
+            ∨E
+              (0 ∨ (1 ∧ 2))
+              ⊥E
+                ⊃E
+                  ∧E2
+                    ((4 ∧ 5) ∧ (¬0))
+                  0
+              ∧E1
+                (1 ∧ 2)
+            ∧E1
+              ∧E1
+                ((4 ∧ 5) ∧ (¬0))
+          ∧I
+            ∨E
+              (0 ∨ (1 ∧ 2))
+              ⊥E
+                ⊃E
+                  ∧E2
+                    ((4 ∧ 5) ∧ (¬0))
+                  0
+              ∧E2
+                (1 ∧ 2)
+            ∧E2
+              ∧E1
+                ((4 ∧ 5) ∧ (¬0))
+Program
+λvar0.
+  λvar1.
+    case
+      var1 of
+      inl (var2) -> (inl type (1 ∧ 4) ∧ (2 ∧ 5) to Pair (
+        case
+          var0 of
+          inl (var8) -> (var8)
+          inr (var9) -> ((abort program)),
+        fst (
+          var2
+        )
+      ))
+      inr (var3) -> (inr type 0 ∧ 3 to Pair (
+        Pair (
+          case
+            var0 of
+            inl (var6) -> ((abort program))
+            inr (var7) -> (fst (
+            var7
+          )),
+          fst (
+            fst (
+              var3
+            )
+          )
+        ),
+        Pair (
+          case
+            var0 of
+            inl (var4) -> ((abort program))
+            inr (var5) -> (snd (
+            var5
+          )),
+          snd (
+            fst (
+              var3
+            )
+          )
+        )
+      ))
+OCaml code
+(fun var0 -> ((fun var1 -> ((match var1 with Left (var2) -> ((Left (((match var0 with Left (var8) -> (var8)| Right (var9) -> ((raise (InvalidInput "You have given this function invalid input")))), (fst (var2))))))| Right (var3) -> ((Right ((((match var0 with Left (var6) -> ((raise (InvalidInput "You have given this function invalid input")))| Right (var7) -> ((fst (var7)))), (fst ((fst (var3))))), ((match var0 with Left (var4) -> ((raise (InvalidInput "You have given this function invalid input")))| Right (var5) -> ((snd (var5)))), (snd ((fst (var3))))))))))))))
+Prover execution time: 0.266000ms
+--------------------------------------------------------
+Theorem
+⊥ ⊃ 0
+Proof
+⊃I
+  ⊥E
+    ⊥
+Program
+λvar0.
+  (abort program)
+OCaml code
+(fun var0 -> ((raise (InvalidInput "You have given this function invalid input"))))
+Prover execution time: 0.000000ms
+--------------------------------------------------------
+Theorem
+0 ⊃ ⊤
+Proof
+⊃I
+  ⊤I
+Program
+λvar0.
+  (unit element)
+OCaml code
+(fun var0 -> (()))
+Prover execution time: 0.000000ms
