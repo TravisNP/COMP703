@@ -342,9 +342,13 @@ and prover
             | CON (left, right) -> 
               (
                 let leftProof = prover ~maxDepthIntro:(maxDepthIntro - 1) left assumptions usedDIS proofTopMap proofMap in
-                let rightProof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS proofTopMap proofMap in
-                if (is_successful leftProof) && (is_successful rightProof)
-                  then PROOF (CON_INTRO, [leftProof; rightProof], true, max (get_depth_proof leftProof) (get_depth_proof rightProof) + 1)
+                if is_successful leftProof 
+                  then (
+                    let rightProof = prover ~maxDepthIntro:(maxDepthIntro - 1) right assumptions usedDIS proofTopMap proofMap in
+                    if is_successful rightProof
+                      then PROOF (CON_INTRO, [leftProof; rightProof], true, max (get_depth_proof leftProof) (get_depth_proof rightProof) + 1)
+                      else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
+                  )
                   else handle_dis_elim maxDepthIntro theorem assumptions usedDIS proofTopMap proofMap
               )
             | IMP (left, right, _) ->
