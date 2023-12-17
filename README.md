@@ -1,7 +1,7 @@
 # Welcome
 Hello and welcome to our COMP 703 course project. We developed and implemented a theorem proving algorithm for constructive logic, abstract code extraction using the Curry-Howard correspondence, and built a code synthesizer for OCaml. For more specifics, please see the final project report in this repository.
 
-#Usage
+# Usage
 This project requires OCaml 5.1.0 or greater, although it has only been tested on 5.1.0. We build and run our project with Dune. Executing the [runMe.sh](https://github.com/TravisNP/COMP703/blob/main/COMP_PROVER/runMe.sh) file will run the [testing.ml](https://github.com/TravisNP/COMP703/blob/main/COMP_PROVER/bin/testing.ml) file. There are examples in this file which will help you learn how to create and extract functions for your own theorems.
 
 First, to specify a theorem, you must know how to use the implication, conjunction, disjunction, and not operators. The not operator is !!, cunjunction **, disjunction @@, and implication &&. This may seem confusing at first as why would && stand for implication and not conjunction? The operator precedence and associativity [table](https://v2.ocaml.org/manual/expr.html) on the OCaml manual provides an explanation. As the constructive logic operators have precedence order and are right associative, our choice of operators becomes severely limited, and so we tried to make our choice as least confusing as possible. We could have used an external package to make the operators clear, however, we did wanted the setup to be as least complicated as possible and so we chose to have our project work with no external packages.
