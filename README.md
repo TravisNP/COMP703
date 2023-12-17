@@ -8,9 +8,9 @@ First, to specify a theorem, you must know how to use the implication, conjuncti
 
 Second, if you have not read the paper you will need to know how our custom theorem type is defined. Singleton theorems, those with no operators, are defined with the constructor S and take in a single integer. To make this easier, we have included a shorthand for around the first half of the alphabet. That is, the letter a corresponds to S 0, b to S 1, etc. For example, the first theorem in testing.ml, a ** b && b ** a, is shorthand for (S 0) ** (S 1) && (S 1) ** (S 0).
 
-Finally, we provide several userfriendly functions, although all are exposed to the user. First, the theorem_to_proof function takes in a theorem and gives a corresponding proof. If no proof exists or none is found, a proof with the rule of failure is returned. Theorem_to_proof also takes in an optional argument maxDepthIntro, which specifies the maximum amount of building up rules that can be used in a branch of the proof tree. For example, 
+Finally, we provide several userfriendly functions, although all are exposed to the user. First, the theorem_to_proof function takes in a theorem and gives a corresponding proof. If no proof exists or none is found, a proof with the rule of failure is returned. Theorem_to_proof also takes in an optional argument maxDepthBuildUp, which specifies the maximum amount of building up rules that can be used in a branch of the proof tree. For example, 
 ```
-theorem_to_proof ~maxDepthIntro:10 a ** b && b ** a
+theorem_to_proof ~maxDepthBuildUp:10 a ** b && b ** a
 ```
 tries to prove the first theorem in the testing.ml file with a max depth of 10. The default max depth is 100.
 
@@ -18,7 +18,7 @@ The second function needed is the proof_to_program function, which takes in a pr
 
 The third function is program_to_ocaml_string, which takes in a program returns a string of runnable OCaml code.
 
-These can be ran all at once on a single theorem using the [test_theorem](https://github.com/TravisNP/COMP703/blob/5151ff43e3d098f7c4233bc0007f31167299578c/COMP_PROVER/lib/Prover.ml#L631-L645) function. This function also takes in the optional argument of maxDepthIntro. 
+These can be ran all at once on a single theorem using the [test_theorem](https://github.com/TravisNP/COMP703/blob/5151ff43e3d098f7c4233bc0007f31167299578c/COMP_PROVER/lib/Prover.ml#L631-L645) function. This function also takes in the optional argument of maxDepthBuildUp. 
 
 In terms of to_string and printing, we provide the following functions: theorem_to_string, print_theorem, proof_to_string, print_proof, proof_to_oneline_string, print_proof_oneline, program_to_string, and print_program functions. The oneline versions give the proof as string form in one compact line, but it is less readable for larger functions than the multi-line version.
 
