@@ -18,7 +18,7 @@ The second function needed is the proof_to_program function, which takes in a pr
 
 The third function is program_to_ocaml_string, which takes in a program returns a string of runnable OCaml code.
 
-These can be ran all at once on a single theorem using the [test_theorem](https://github.com/TravisNP/COMP703/blob/5151ff43e3d098f7c4233bc0007f31167299578c/COMP_PROVER/lib/Prover.ml#L631-L645) function. This function also takes in the optional argument of maxDepthBuildUp. 
+These can be ran all at once on a single theorem using the [test_theorem](https://github.com/TravisNP/COMP703/blob/62d8013662ad22df1e74707ec09bd31ab9ec64d2/COMP_PROVER/lib/Prover.ml#L631-L645) function. This function also takes in the optional argument of maxDepthBuildUp. 
 
 In terms of to_string and printing, we provide the following functions: theorem_to_string, print_theorem, proof_to_string, print_proof, proof_to_oneline_string, print_proof_oneline, program_to_string, and print_program functions. The oneline versions give the proof as string form in one compact line, but it is less readable for larger functions than the multi-line version.
 
